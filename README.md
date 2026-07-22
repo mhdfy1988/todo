@@ -2,7 +2,7 @@
 
 “代办”是一款本地优先的 Windows 桌面悬浮待办：想到事情时快速记下，按自己需要的顺序处理，并保留完成历史作为周报和回顾依据。
 
-当前版本为 `0.1.0`，属于可试用的早期版本。Windows x64 NSIS 安装器和自动更新链路已经实现，本机已成功生成安装器与更新签名；首个 GitHub Release 尚未创建，因此当前不能把它视为已经完成线上发布。宠物、番茄钟、AI 和日历均不在本阶段范围内。
+当前版本为 `0.1.0`，属于可试用的早期版本。Windows x64 NSIS 安装器已通过 GitHub Actions 发布，公开安装器、更新签名与 `latest.json` 已完成独立复验；真正的版本间自动更新仍需在后续版本上完成实机验证。宠物、番茄钟、AI 和日历均不在本阶段范围内。
 
 ## 功能
 
@@ -78,11 +78,11 @@ npm.cmd run desktop:build
 npm.cmd run desktop:bundle:windows
 ```
 
-安装器与 `.sig` 更新签名位于 `src-tauri/target/release/bundle/nsis/`。本机已经验证两类产物可以成功生成；首个 GitHub Release 与线上 `latest.json` 尚未创建，完整线上更新闭环仍待首次发布后验证。
+安装器与 `.sig` 更新签名位于 `src-tauri/target/release/bundle/nsis/`。本机已经验证两类产物可以成功生成；[`v0.1.0` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.0) 已发布，线上 `latest.json`、公开安装器签名和资产摘要均已验证，完整版本间升级闭环仍待后续版本验证。
 
 ## 安装、发布与更新
 
-- 首次安装：首个 Release 发布后，用户需要从 GitHub Releases 手动下载 Windows x64 `setup.exe` 并安装；安装范围为当前用户。
+- 首次安装：用户从 [`v0.1.0` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.0) 手动下载 Windows x64 `setup.exe` 并安装；安装范围为当前用户。
 - 后续更新：正常模式启动后立即静默检查一次，此后每 24 小时检查；更多菜单提供“检查更新”。发现新版本后，用户点击“安装更新”才会下载、安装并重启应用。
 - 冒烟隔离：smoke 前端不会启动更新控制器，Rust 更新服务也会在访问网络前拒绝请求，避免测试触碰正式更新源。
 - 自动发布：`.github/workflows/release.yml` 支持从 `main` 手动触发和 `v*` 标签触发；`tauri-apps/tauri-action@v1` 先生成草稿 Release、安装器、更新签名和 `latest.json`，工作流用客户端公钥验签并核对元数据后才自动发布。
@@ -100,7 +100,7 @@ npm.cmd run desktop:bundle:windows
 ## 已知限制
 
 - 当前只按 Windows 桌面环境开发和验证，不承诺 macOS 或 Linux 可用。
-- 当前安装器只面向 Windows x64；首个 GitHub Release 尚未创建，首次下载与线上自动更新闭环仍待验证。
+- 当前安装器只面向 Windows x64；`v0.1.0` 的公开下载、元数据和更新签名已经验证，手动首次安装与后续版本自动更新闭环仍待实机验证。
 - Windows Authenticode 暂未配置，安装器可能触发 SmartScreen 提示。
 - 多显示器、所有 Windows 缩放比例以及任务栏位于四个方向的组合仍需更多实机验证。
 - 截止日期只用于本地展示，不会自动排序、隐藏任务、提醒、发送通知、同步日历或产生奖惩。

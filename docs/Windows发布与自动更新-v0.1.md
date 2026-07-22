@@ -1,6 +1,6 @@
 # 代办：Windows 发布与自动更新 v0.1
 
-> 状态：Windows x64 NSIS 与自动更新实现已落地，本地打包已通过；首个 GitHub Release 和线上升级闭环待验证
+> 状态：`v0.1.0` GitHub Release 已发布，公网安装器、更新签名与 `latest.json` 已验证；首次安装和版本间升级闭环待实机验证
 > 更新时间：2026-07-22
 > 适用版本：`0.1.0`
 
@@ -12,9 +12,9 @@
 | Tauri 更新签名 | 已实现并完成本地验证 | 本机已成功生成对应 `.sig` |
 | 应用内检查与安装 | 已实现 | normal 模式启动检查、24 小时间隔、菜单手动检查和用户点击安装 |
 | smoke 更新网络隔离 | 已实现 | 前端不启动更新控制器，Rust 在访问网络前再次拒绝 |
-| GitHub Actions 发布 | 已配置 | 支持手动触发和 `v*` 标签触发 |
-| 首个 GitHub Release | 未完成 | 尚未创建，不能声称线上安装或更新已经成功 |
-| `latest.json` 线上读取 | 未验证 | 需在首个 Release 上传后核对 |
+| GitHub Actions 发布 | 已实现并完成首次验证 | 支持手动触发和 `v*` 标签触发；`v0.1.0` 流水线已成功 |
+| 首个 GitHub Release | 已完成 | `v0.1.0` 已发布为 Latest，安装器、`.sig` 与 `latest.json` 均已上传 |
+| `latest.json` 线上读取 | 已验证 | 已从公开 Latest 地址匿名读取，并按其中地址下载、验签安装器及核对资产摘要 |
 | Windows Authenticode | 暂未配置 | 安装器可能触发 Microsoft Defender SmartScreen 提示 |
 
 ## 2. 目标与边界
@@ -95,10 +95,10 @@ UpdateController
 2. 校验 `package.json`、`src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml` 版本一致；标签触发时还要求标签等于 `v<版本号>`。
 3. 运行统一门禁、Rust 格式检查和 Clippy。
 4. 通过 `tauri-apps/tauri-action@v1` 构建 Windows x64 NSIS，并把安装器、`.sig` 与 `latest.json` 上传到草稿 Release。
-5. 使用客户端内嵌公钥对实际安装器和 `.sig` 做密码学验签，同时核对 `latest.json` 的版本、平台、签名和下载地址。
+5. 使用客户端内嵌公钥对实际安装器和 `.sig` 做密码学验签，同时核对 `latest.json` 的版本、平台、签名和下载地址；再按元数据地址重新下载安装器并与本次构建产物比较 SHA-256。
 6. 只有验证通过，才把草稿自动转为正式 GitHub Release；失败时保留草稿，不进入 `releases/latest`。
 
-首个 Release 尚未执行，因此第 5 步目前只是已配置流程，不是已验证结果。
+`v0.1.0` 已通过上述流程发布：[GitHub Actions 运行记录](https://github.com/mhdfy1988/todo/actions/runs/29899650153)。发布后又通过公开 Latest 地址独立下载并复验了元数据、安装器、签名与 GitHub 资产摘要。该结果证明首发产物链路可用，但不等于已经完成后续版本的应用内升级。
 
 ## 7. 发布密钥
 
@@ -122,14 +122,14 @@ GitHub Actions 只约定以下 Secrets 名称：
 
 ## 9. 首次发布检查单
 
-- [ ] 确认三个版本号一致，并确认标签为 `v0.1.0`。
-- [ ] 确认两个 GitHub Actions Secrets 已配置，私钥未进入仓库。
-- [ ] 运行统一门禁、格式检查、Clippy 和 Windows NSIS 构建。
-- [ ] 创建首个 GitHub Release，核对 `setup.exe`、`.sig` 与 `latest.json`。
+- [x] 确认三个版本号一致，并确认标签为 `v0.1.0`。
+- [x] 确认两个 GitHub Actions Secrets 已配置，私钥未进入仓库。
+- [x] 运行统一门禁、格式检查、Clippy 和 Windows NSIS 构建。
+- [x] 创建首个 GitHub Release，核对 `setup.exe`、`.sig` 与 `latest.json`。
 - [ ] 在干净的 Windows x64 当前用户环境完成手动首次安装。
 - [ ] 确认 normal 启动检查和菜单手动检查能读取线上元数据。
-- [ ] 确认 smoke 前端无入口，Rust 拒绝更新且未访问网络。
+- [x] 确认 smoke 前端无入口，Rust 在访问网络前拒绝更新。
 - [ ] 用后续版本完成一次“发现更新 → 用户点击安装 → 下载校验 → 安装重启”实机闭环。
 - [ ] 记录 SmartScreen 实际表现；若进入公开分发，再单独评估 Authenticode 证书。
 
-在这些线上检查完成前，准确口径是“发布与更新实现已落地、本地打包已通过、首次线上发布待完成”。
+当前准确口径是“`v0.1.0` 首次线上发布与公网产物验证已完成；手动首次安装和后续版本的应用内升级闭环仍待实机验证”。
