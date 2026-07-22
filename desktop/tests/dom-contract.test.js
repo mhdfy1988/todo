@@ -29,6 +29,7 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
     "listSearchCancel",
     "listSearchStatus",
     "searchAction",
+    "updateAction",
     "historyLink",
     "historyCount",
     "historyHeading",
@@ -49,6 +50,7 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
     "expanded",
     "hide",
     "search",
+    "update",
     "show-history",
     "show-tasks",
   ];

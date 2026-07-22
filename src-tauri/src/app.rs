@@ -1,4 +1,5 @@
 use crate::{
+    app_update::AppUpdateService,
     desktop::{state::DesktopState, tray, window, MAIN_WINDOW},
     frontend_probe::FrontendProbeState,
     ledger::LedgerState,
@@ -12,6 +13,7 @@ pub(crate) fn run() {
     let state_file = profile.state_file();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_filename(state_file)
@@ -20,12 +22,15 @@ pub(crate) fn run() {
                 .build(),
         )
         .manage(profile)
+        .manage(AppUpdateService::default())
         .manage(DesktopState::default())
         .manage(FrontendProbeState::default())
         .invoke_handler(tauri::generate_handler![
             crate::desktop::commands::set_window_mode,
             crate::desktop::commands::window_status,
             crate::runtime_profile::runtime_profile,
+            crate::app_update::commands::check_for_update,
+            crate::app_update::commands::install_update,
             crate::desktop::commands::hide_to_tray,
             crate::frontend_probe::report_frontend_ready,
             crate::ledger::commands::capture_task,

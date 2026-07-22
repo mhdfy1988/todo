@@ -1,0 +1,97 @@
+name: 发布 Windows 安装包
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: 构建并发布 Windows x64
+    runs-on: windows-latest
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v7
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: 缓存 Rust 构建
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: 安装前端依赖
+        run: npm.cmd ci
+
+      - name: 限制手动发布来源
+        if: github.event_name == 'workflow_dispatch'
+        shell: powershell
+        run: |
+          if ('${{ github.ref }}' -ne 'refs/heads/main') { throw '手动发布只能从 main 分支执行' }
+
+      - name: 核对发布版本
+        run: npm.cmd run release:version:check
+
+      - name: 运行统一测试门禁
+        run: npm.cmd run desktop:check
+
+      - name: 检查 Rust 格式
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: 检查 Rust 静态规则
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: 构建安装包并创建草稿 Release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 代办 v__VERSION__
+          releaseBody: |
+            Windows x64 安装包。首次安装请下载 setup.exe；后续版本可在应用内检查并安装更新。
+          releaseDraft: true
+          prerelease: false
+          generateReleaseNotes: true
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+          uploadUpdaterSignatures: true
+          args: --bundles nsis
+
+      - name: 验证更新签名与 latest.json
+        shell: powershell
+        run: |
+          $installers = @(Get-ChildItem -LiteralPath 'src-tauri\target\release\bundle\nsis' -Filter '*-setup.exe')
+          if ($installers.Count -ne 1) { throw "期望恰好一个 NSIS 安装器，实际为 $($installers.Count)" }
+          $signature = "$($installers[0].FullName).sig"
+          if (-not (Test-Path -LiteralPath $signature)) { throw '缺少 NSIS 更新签名' }
+          if (-not (Test-Path -LiteralPath 'latest.json')) { throw '缺少 latest.json' }
+          cargo run --locked --manifest-path src-tauri/Cargo.toml --example verify_updater_signature -- $installers[0].FullName $signature latest.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: 发布已验证的 Release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $package = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
+          gh release edit "v$($package.version)" --draft=false --latest --repo "${{ github.repository }}"

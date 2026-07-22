@@ -35,12 +35,30 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg3NTkwRjRCNjgzNTc3MEQKUldRTmR6Vm9TdzlaaDFORi9rbDdkaUpEZlhsdm1ZR2pQRm1XTGVOM0pubHcwMmY3SFJxdGQxRGQK",
+      "endpoints": [
+        "https://github.com/mhdfy1988/todo/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

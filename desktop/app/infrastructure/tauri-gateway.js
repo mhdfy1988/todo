@@ -31,6 +31,14 @@ export class TauriGateway {
     return this.call("runtime_profile");
   }
 
+  checkForUpdate() {
+    return this.call("check_for_update");
+  }
+
+  installUpdate(expectedVersion) {
+    return this.call("install_update", { expectedVersion });
+  }
+
   ledgerSnapshot() {
     return this.call("ledger_snapshot");
   }

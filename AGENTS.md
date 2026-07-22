@@ -21,6 +21,9 @@
 9. 托盘或系统回调改变窗口模式时必须统一经过 `window::set_mode`，并用 `window-status-changed` 把完整 `WindowStatus` 同步给前端；不得只改原生窗口尺寸而让 `body.dataset.mode` 保留旧值。隐藏到托盘本身不得暗中切换显示模式。
 10. 面向用户的“删除待办”默认是可追溯软删除：写入 `Abandoned` 事件并从队列移出，不物理删除任务或历史、不产生奖励；真正的永久清理必须另行设计和确认。
 11. 标题修改只允许立即 `pending` 待办，必须通过 `update_task_title` 追加 `TitleUpdated`（存储值 `title_updated`）事件并保存 `beforeTitle` / `afterTitle`；不得直接覆盖旧事件，也不得改变任务状态、队列位置或金币。
+12. 应用更新只能由前端 `UpdateController` 经 `TauriGateway` 调用项目自有 Rust 命令，再由 `app_update` 适配 Tauri updater；自动检查只能在 normal 账本进入 `READY` 后运行，smoke 必须在前后端两层禁网，安装必须由用户确认且不得与未完成账本写入并发。
+13. `plugins.updater.pubkey` 是已安装客户端的更新信任身份；发布后不得随意替换。更新私钥和密码只允许进入本机安全备份与 GitHub Actions Secrets，禁止提交仓库；私钥丢失时不得以无签名或新密钥静默绕过既有客户端校验。
+14. GitHub Release 必须先以草稿接收安装器、`.sig` 与 `latest.json`，再用客户端内嵌公钥验证实际签名并核对元数据；只有验证通过才能自动转为正式 Release，禁止未经闭环校验直接公开更新产物。
 
 ## 模块化约束
 

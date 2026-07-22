@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod app_update;
 mod desktop;
 mod frontend_probe;
 mod integration_smoke;

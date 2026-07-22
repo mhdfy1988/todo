@@ -11,6 +11,7 @@ import { TaskListController } from "./app/task-list-controller.js";
 import { isSearchShortcut, ListSearchController } from "./app/list-search-controller.js";
 import { WindowController } from "./app/window-controller.js";
 import { millisecondsUntilNextLocalDay } from "./app/deadline-date.js";
+import { UpdateController } from "./app/update-controller.js";
 
 const root = document.body;
 const statusText = document.querySelector("#statusText");
@@ -79,6 +80,14 @@ function startDesktopApplication(activeGateway) {
     root,
     statusText,
   });
+  const updateController = new UpdateController({
+    gateway: activeGateway,
+    actionButton: document.querySelector("#updateAction"),
+    root: document.querySelector("#desktopRoot"),
+    toast,
+    timerHost: window,
+  });
+  window.addEventListener("beforeunload", () => updateController.stop(), { once: true });
   taskListController = new TaskListController({
     list: taskList,
     status: taskOrderStatus,
@@ -131,6 +140,7 @@ function startDesktopApplication(activeGateway) {
         shellController,
         searchController,
         taskListController,
+        updateController,
         windowController,
       });
     } catch (error) {
@@ -172,7 +182,7 @@ function startDesktopApplication(activeGateway) {
     }
   });
 
-  start(session, windowController);
+  start(session, updateController, windowController);
 }
 
 /** 期限只是展示派生值；午夜刷新 DOM，不写账本也不重绘任务列表。 */
@@ -188,7 +198,7 @@ function scheduleDeadlinePresentationRefresh(view) {
   window.addEventListener("beforeunload", () => window.clearTimeout(timer), { once: true });
 }
 
-async function start(session, windowController) {
+async function start(session, updateController, windowController) {
   try {
     await windowController.subscribeToStatusChanges();
     const result = await session.start();
@@ -200,6 +210,7 @@ async function start(session, windowController) {
     } else if (result.recovered) {
       toast.show("上次未确认的操作已恢复");
     }
+    void updateController.start(session.state.profile, session);
   } catch (error) {
     console.error(error);
     toast.show(errorMessage(error));
@@ -229,6 +240,7 @@ async function handleAction({
   shellController,
   searchController,
   taskListController,
+  updateController,
   windowController,
 }) {
   switch (action) {
@@ -267,6 +279,9 @@ async function handleAction({
     case "diagnostics":
       shellController.closeMenu();
       await runDiagnostics(session, windowController);
+      return;
+    case "update":
+      await updateController.handleAction();
       return;
     case "complete-task": {
       const taskId = button.dataset.taskId;

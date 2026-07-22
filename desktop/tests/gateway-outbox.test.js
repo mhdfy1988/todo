@@ -261,6 +261,8 @@ test("TauriGateway 保持命令名和 camelCase payload 映射", async () => {
   await gateway.setWindowMode("expanded", true);
   await gateway.weeklyFacts(1000, 2000);
   await gateway.reportFrontendReady("smoke");
+  await gateway.checkForUpdate();
+  await gateway.installUpdate("0.1.1");
 
   assert.deepEqual(calls, [
     {
@@ -315,6 +317,14 @@ test("TauriGateway 保持命令名和 camelCase payload 映射", async () => {
     {
       command: "report_frontend_ready",
       payload: { report: { profile: "smoke", ledgerReady: true } },
+    },
+    {
+      command: "check_for_update",
+      payload: {},
+    },
+    {
+      command: "install_update",
+      payload: { expectedVersion: "0.1.1" },
     },
   ]);
 });

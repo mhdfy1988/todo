@@ -14,13 +14,16 @@
     "url": "https://github.com/mhdfy1988/todo/issues"
   },
   "scripts": {
+    "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "predesktop:check": "npm run frontend:check",
     "desktop:check": "cargo test --manifest-path src-tauri/Cargo.toml",
     "desktop:build": "tauri build --no-bundle",
+    "desktop:bundle:windows": "tauri build --bundles nsis",
     "desktop:smoke": "cargo run --manifest-path src-tauri/Cargo.toml -- --smoke",
     "ledger:smoke": "cargo run --manifest-path src-tauri/Cargo.toml -- --ledger-smoke",
-    "frontend:check": "node --test desktop/tests/*.test.js"
+    "frontend:check": "node --test desktop/tests/*.test.js",
+    "release:version:check": "node scripts/check-release-version.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.11.4"
