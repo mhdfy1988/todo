@@ -45,6 +45,8 @@ test("发布工作流先过门禁，再上传安装器、签名和 latest.json",
   assert.match(workflow, /npm\.cmd run release:version:check/);
   assert.match(workflow, /npm\.cmd run desktop:check/);
   assert.match(workflow, /手动发布只能从 main 分支执行/);
+  assert.equal(workflow.match(/shell: pwsh/g)?.length, 3);
+  assert.doesNotMatch(workflow, /shell: powershell/);
   assert.match(workflow, /tauri-apps\/tauri-action@v1/);
   assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY: \$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY \}\}/);
   assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD: \$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY_PASSWORD \}\}/);

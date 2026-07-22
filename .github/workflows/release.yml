@@ -42,7 +42,7 @@ jobs:
 
       - name: 限制手动发布来源
         if: github.event_name == 'workflow_dispatch'
-        shell: powershell
+        shell: pwsh
         run: |
           if ('${{ github.ref }}' -ne 'refs/heads/main') { throw '手动发布只能从 main 分支执行' }
 
@@ -78,7 +78,7 @@ jobs:
           args: --bundles nsis
 
       - name: 验证更新签名与 latest.json
-        shell: powershell
+        shell: pwsh
         run: |
           $installers = @(Get-ChildItem -LiteralPath 'src-tauri\target\release\bundle\nsis' -Filter '*-setup.exe')
           if ($installers.Count -ne 1) { throw "期望恰好一个 NSIS 安装器，实际为 $($installers.Count)" }
@@ -89,7 +89,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: 发布已验证的 Release
-        shell: powershell
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
