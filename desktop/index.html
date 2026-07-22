@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#00000000">
+  <title>代办</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body data-mode="capsule" data-panel="tasks" data-ledger-state="loading">
+  <main id="desktopRoot" class="desktop-root">
+    <section class="surface expanded" data-surface="expanded" aria-label="展开任务面板">
+      <header class="window-bar" data-tauri-drag-region>
+        <span class="brand-dot" aria-hidden="true"></span>
+        <strong>代办</strong>
+        <span class="window-actions">
+          <button type="button" class="icon-button" data-action="capsule" aria-label="收起成当前任务胶囊">—</button>
+          <details id="moreMenu" class="more-menu">
+            <summary id="moreMenuButton" aria-label="更多操作">···</summary>
+            <div class="menu-popover">
+              <button id="searchAction" type="button" data-action="search" aria-keyshortcuts="Control+F">搜索待办</button>
+              <button type="button" data-action="hide">隐藏到托盘</button>
+              <button type="button" data-action="diagnostics">检查本地数据</button>
+            </div>
+          </details>
+        </span>
+      </header>
+
+      <div class="panel-body">
+        <form id="listSearchForm" class="list-search" role="search" autocomplete="off" hidden>
+          <label id="listSearchLabel" class="sr-only" for="listSearchInput">搜索待办</label>
+          <input id="listSearchInput" type="search" maxlength="500" placeholder="搜索待办" aria-controls="taskList" aria-describedby="listSearchStatus">
+          <button id="listSearchCancel" type="button">取消</button>
+          <p id="listSearchStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+        </form>
+
+        <section class="panel-view tasks-view" aria-label="待办">
+          <form id="captureForm" class="capture-form" autocomplete="off">
+            <label class="sr-only" for="taskTitle">记一件事</label>
+            <input id="taskTitle" name="title" maxlength="500" placeholder="记一件事" required disabled>
+            <button type="submit" disabled>记下</button>
+          </form>
+
+          <div id="ledgerStatus" class="ledger-status">
+            <span id="ledgerStatusText">正在读取本地账本…</span>
+            <button id="retryButton" type="button" data-action="diagnostics" hidden>重试</button>
+          </div>
+
+          <ol id="taskList" class="task-list" aria-label="待办"></ol>
+          <p id="taskOrderStatus" class="sr-only" aria-live="polite"></p>
+          <p id="taskOrderHelp" class="sr-only">拖动调整顺序，或在排序按钮上按 Alt 加上下方向键移动。</p>
+
+          <button id="historyLink" type="button" class="history-link" data-action="show-history" hidden>
+            <span>完成记录</span>
+            <span><b id="historyCount">0</b><i aria-hidden="true">›</i></span>
+          </button>
+        </section>
+
+        <section class="panel-view history-view" aria-labelledby="historyTitle">
+          <header id="historyHeading" class="panel-heading">
+            <button id="historyBackButton" type="button" data-action="show-tasks" aria-label="返回待办">←</button>
+            <strong id="historyTitle">完成记录</strong>
+          </header>
+          <ol id="historyList" class="history-list"></ol>
+        </section>
+      </div>
+    </section>
+
+    <section class="surface capsule" data-surface="capsule" aria-label="当前任务胶囊" data-tauri-drag-region>
+      <input id="capsuleTaskCheckbox" class="task-checkbox capsule-checkbox" type="checkbox" data-action="complete-task" aria-label="完成当前任务" hidden disabled>
+      <div class="task-copy">
+        <button id="capsuleTitleButton" type="button" class="capsule-title-button" data-action="expanded" aria-label="正在读取本地账本">
+          <strong id="capsuleTaskTitle">本地账本加载中</strong>
+        </button>
+        <button id="capsuleTaskDeadline" type="button" class="capsule-deadline" data-action="edit-current-deadline" hidden></button>
+      </div>
+      <button type="button" class="capsule-hide-button" data-action="hide" aria-label="隐藏到托盘" title="隐藏到托盘">
+        <span class="capsule-hide-icon" aria-hidden="true"></span>
+      </button>
+    </section>
+
+    <button type="button" class="surface pet-only" data-surface="pet" data-action="expanded" aria-label="展开任务面板" data-tauri-drag-region>
+      <span class="pet pet-large" data-pet aria-hidden="true"></span>
+      <span class="pet-status">在陪你</span>
+    </button>
+
+    <button type="button" class="surface edge-peek" data-surface="edge" data-action="capsule" aria-label="从贴边露出态恢复" data-tauri-drag-region>
+      <span class="edge-line" aria-hidden="true"></span>
+      <span class="pet pet-edge" data-pet aria-hidden="true"></span>
+      <span class="restore-mark" aria-hidden="true">‹</span>
+    </button>
+  </main>
+
+  <template id="petTemplate">
+    <i class="ear left"></i><i class="ear right"></i><i class="body"></i>
+    <i class="eye left"></i><i class="eye right"></i><i class="mouth"></i><i class="tail"></i>
+  </template>
+
+  <div id="toast" class="toast" role="status"></div>
+</body>
+</html>

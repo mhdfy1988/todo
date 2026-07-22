@@ -1,0 +1,29 @@
+[package]
+name = "zuoban-desktop-spike"
+version = "0.1.0"
+description = "本地优先的 Windows 桌面悬浮待办应用"
+authors = ["luoji"]
+license = "MIT"
+repository = "https://github.com/mhdfy1988/todo"
+homepage = "https://github.com/mhdfy1988/todo"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+rusqlite = { version = "0.40.1", default-features = false, features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.11.5", features = ["tray-icon"] }
+tauri-plugin-window-state = "2.4.1"
+uuid = { version = "1.23.5", features = ["v4"] }
+
+[profile.dev]
+incremental = true
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

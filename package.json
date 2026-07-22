@@ -1,0 +1,28 @@
+{
+  "name": "zuoban-desktop-spike",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "本地优先的 Windows 桌面悬浮待办应用",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mhdfy1988/todo.git"
+  },
+  "homepage": "https://github.com/mhdfy1988/todo#readme",
+  "bugs": {
+    "url": "https://github.com/mhdfy1988/todo/issues"
+  },
+  "scripts": {
+    "desktop:dev": "tauri dev",
+    "predesktop:check": "npm run frontend:check",
+    "desktop:check": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "desktop:build": "tauri build --no-bundle",
+    "desktop:smoke": "cargo run --manifest-path src-tauri/Cargo.toml -- --smoke",
+    "ledger:smoke": "cargo run --manifest-path src-tauri/Cargo.toml -- --ledger-smoke",
+    "frontend:check": "node --test desktop/tests/*.test.js"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4"
+  }
+}

@@ -1,0 +1,69 @@
+# JavaScript 依赖与 Rust 构建目录
+node_modules/
+**/target/
+
+# 本地环境变量；示例配置允许提交
+.env
+.env.*
+!.env.example
+
+# 密钥、证书与签名材料
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+*.jks
+*.keystore
+*.snk
+
+# SQLite、本地账本及迁移前备份
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.before-v*.sqlite3
+
+# 窗口运行状态
+desktop-window-state*.json
+
+# 日志、临时文件、备份与崩溃转储
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.dmp
+*.dump
+*.stackdump
+*.swp
+*.swo
+*.orig
+*~
+tmp/
+temp/
+
+# 操作系统与 IDE 本地文件
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# 本地 Agent/Codex 状态
+.agents/
+.codex/
+
+# 含真实桌面内容或来自剪贴板的临时截图
+/docs/assets/desktop-spike-capsule.png
+codex-clipboard-*.png

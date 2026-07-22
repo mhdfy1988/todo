@@ -1,0 +1,1614 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#071013" />
+  <title>代办 · 深色透明风</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --night: #070d10;
+        --night-soft: #0b1519;
+        --glass: rgba(13, 24, 28, 0.76);
+        --glass-strong: rgba(10, 18, 22, 0.92);
+        --line: rgba(225, 247, 244, 0.12);
+        --line-bright: rgba(225, 247, 244, 0.22);
+        --text: #f3f8f7;
+        --muted: #8fa19f;
+        --mint: #77e2d3;
+        --mint-deep: #1b8f87;
+        --gold: #f1c765;
+        --warm: #f29b6e;
+        --danger: #f29a88;
+        --shadow: 0 32px 90px rgba(0, 0, 0, 0.5);
+        --radius: 26px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+      }
+
+      body {
+        min-height: 100vh;
+        overflow-x: hidden;
+        color: var(--text);
+        font-family: "Microsoft YaHei UI", "PingFang SC", sans-serif;
+        background:
+          radial-gradient(circle at 72% 14%, rgba(43, 143, 134, 0.2), transparent 30%),
+          radial-gradient(circle at 12% 85%, rgba(217, 131, 81, 0.12), transparent 26%),
+          linear-gradient(145deg, #0a1418 0%, #05090b 48%, #081114 100%);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.28;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+        background-size: 42px 42px;
+        mask-image: radial-gradient(circle at 50% 45%, black, transparent 84%);
+      }
+
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.18;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.2'/%3E%3C/svg%3E");
+        mix-blend-mode: soft-light;
+      }
+
+      .page {
+        position: relative;
+        z-index: 1;
+        width: min(1500px, calc(100% - 48px));
+        margin: 0 auto;
+        padding: 30px 0 34px;
+      }
+
+      .showcase-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 28px;
+        margin-bottom: 22px;
+      }
+
+      .theme-id {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+
+      .theme-mark {
+        position: relative;
+        width: 52px;
+        height: 52px;
+        border: 1px solid rgba(119, 226, 211, 0.35);
+        border-radius: 17px;
+        background: rgba(119, 226, 211, 0.08);
+        box-shadow: inset 0 0 22px rgba(119, 226, 211, 0.08), 0 0 36px rgba(119, 226, 211, 0.08);
+      }
+
+      .theme-mark::before,
+      .theme-mark::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+      }
+
+      .theme-mark::before {
+        width: 11px;
+        height: 11px;
+        top: 12px;
+        left: 12px;
+        background: var(--warm);
+        box-shadow: 17px 0 0 var(--gold), 9px 16px 0 var(--mint);
+      }
+
+      .theme-mark::after {
+        inset: 7px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .kicker,
+      .frame-number,
+      .micro-label,
+      .desk-label {
+        margin: 0;
+        color: var(--mint);
+        font-family: Bahnschrift, "DIN Alternate", sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .theme-title {
+        margin: 5px 0 0;
+        font-size: clamp(25px, 2.2vw, 36px);
+        font-weight: 650;
+        letter-spacing: -0.04em;
+      }
+
+      .theme-title span {
+        color: #99aaa8;
+        font-weight: 400;
+      }
+
+      .header-note {
+        max-width: 480px;
+        margin: 0;
+        color: #9cafac;
+        font-size: 13px;
+        line-height: 1.8;
+        text-align: right;
+      }
+
+      .header-note strong {
+        color: #dce7e5;
+        font-weight: 600;
+      }
+
+      .comparison-grid {
+        display: grid;
+        grid-template-columns: minmax(340px, 0.76fr) minmax(660px, 1.58fr);
+        gap: 18px;
+        min-height: 712px;
+      }
+
+      .state-frame {
+        position: relative;
+        min-height: 712px;
+        overflow: hidden;
+        border: 1px solid rgba(229, 247, 245, 0.1);
+        border-radius: 30px;
+        background: rgba(6, 13, 16, 0.46);
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        isolation: isolate;
+      }
+
+      .state-frame::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -2;
+        background:
+          radial-gradient(circle at 75% 80%, rgba(26, 124, 118, 0.19), transparent 27%),
+          linear-gradient(150deg, rgba(21, 41, 47, 0.9), rgba(5, 11, 14, 0.92));
+      }
+
+      .state-frame::after {
+        content: "";
+        position: absolute;
+        width: 580px;
+        height: 580px;
+        right: -245px;
+        bottom: -320px;
+        z-index: -1;
+        border: 1px solid rgba(119, 226, 211, 0.1);
+        border-radius: 50%;
+        box-shadow: 0 0 0 80px rgba(119, 226, 211, 0.025), 0 0 0 160px rgba(119, 226, 211, 0.018);
+      }
+
+      .frame-head {
+        position: absolute;
+        top: 26px;
+        left: 28px;
+        right: 28px;
+        z-index: 5;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .frame-head h2 {
+        margin: 7px 0 0;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      .frame-chip {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        color: #93a4a2;
+        background: rgba(0, 0, 0, 0.16);
+        font-size: 11px;
+      }
+
+      .frame-chip i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--mint);
+        box-shadow: 0 0 10px rgba(119, 226, 211, 0.7);
+      }
+
+      .desktop-meta {
+        position: absolute;
+        top: 100px;
+        left: 28px;
+        display: grid;
+        gap: 4px;
+        color: rgba(214, 229, 226, 0.32);
+        font-family: Bahnschrift, sans-serif;
+      }
+
+      .desktop-meta time {
+        font-size: 36px;
+        font-weight: 300;
+        letter-spacing: -0.04em;
+      }
+
+      .desktop-meta span {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+      }
+
+      .wall-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 94px;
+        height: 1px;
+        opacity: 0.25;
+        background: linear-gradient(90deg, transparent, rgba(119, 226, 211, 0.5), transparent);
+      }
+
+      .desktop-dock {
+        position: absolute;
+        left: 50%;
+        bottom: 16px;
+        display: flex;
+        gap: 9px;
+        padding: 8px 11px;
+        transform: translateX(-50%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 13px;
+        background: rgba(8, 15, 18, 0.42);
+        backdrop-filter: blur(16px);
+      }
+
+      .desktop-dock i {
+        width: 7px;
+        height: 7px;
+        border-radius: 2px;
+        background: rgba(236, 247, 245, 0.27);
+      }
+
+      .desktop-dock i:nth-child(2) {
+        background: rgba(119, 226, 211, 0.7);
+      }
+
+      /* 宠物：暖色角色被冷色微光包围，保留友好感。 */
+      .pet {
+        position: relative;
+        flex: 0 0 auto;
+        width: 86px;
+        height: 76px;
+        filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.34));
+      }
+
+      .pet::before {
+        content: "";
+        position: absolute;
+        inset: -18px -14px -14px;
+        z-index: -2;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(119, 226, 211, 0.24), transparent 67%);
+        animation: petGlow 3.6s ease-in-out infinite;
+      }
+
+      .pet-body {
+        position: absolute;
+        left: 14px;
+        bottom: 4px;
+        width: 61px;
+        height: 58px;
+        border: 1px solid rgba(255, 225, 198, 0.42);
+        border-radius: 46% 46% 44% 44%;
+        background:
+          radial-gradient(circle at 38% 36%, rgba(255, 255, 255, 0.46) 0 3%, transparent 4%),
+          linear-gradient(145deg, #f4ad7b, #dd7f58 74%);
+        box-shadow: inset -8px -10px 18px rgba(117, 53, 35, 0.16), inset 5px 4px 10px rgba(255, 239, 221, 0.16);
+      }
+
+      .pet-ear {
+        position: absolute;
+        top: 2px;
+        z-index: 0;
+        width: 27px;
+        height: 31px;
+        border: 1px solid rgba(255, 225, 198, 0.34);
+        background: linear-gradient(145deg, #ef9c6b, #cf704f);
+      }
+
+      .pet-ear.left {
+        left: 11px;
+        border-radius: 80% 20% 50% 45%;
+        transform: rotate(-22deg);
+      }
+
+      .pet-ear.right {
+        right: 10px;
+        border-radius: 20% 80% 45% 50%;
+        transform: rotate(22deg);
+      }
+
+      .pet-eye {
+        position: absolute;
+        top: 24px;
+        z-index: 2;
+        width: 5px;
+        height: 7px;
+        border-radius: 50%;
+        background: #20302e;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+        animation: blink 5.4s infinite;
+      }
+
+      .pet-eye.left {
+        left: 18px;
+      }
+
+      .pet-eye.right {
+        right: 18px;
+      }
+
+      .pet-mouth {
+        position: absolute;
+        top: 34px;
+        left: 50%;
+        width: 11px;
+        height: 6px;
+        transform: translateX(-50%);
+        border-bottom: 2px solid rgba(71, 45, 38, 0.72);
+        border-radius: 50%;
+      }
+
+      .pet-belly {
+        position: absolute;
+        left: 50%;
+        bottom: 5px;
+        width: 24px;
+        height: 17px;
+        transform: translateX(-50%);
+        border-radius: 50%;
+        background: rgba(255, 220, 188, 0.38);
+      }
+
+      .pet-tail {
+        position: absolute;
+        right: 0;
+        bottom: 10px;
+        z-index: -1;
+        width: 34px;
+        height: 18px;
+        transform: rotate(-12deg);
+        border: 6px solid #d77954;
+        border-left-color: transparent;
+        border-radius: 50%;
+      }
+
+      .pet-halo {
+        position: absolute;
+        left: 4px;
+        bottom: -3px;
+        z-index: -1;
+        width: 80px;
+        height: 15px;
+        border-radius: 50%;
+        background: rgba(119, 226, 211, 0.16);
+        filter: blur(8px);
+      }
+
+      .compact-specimen {
+        position: absolute;
+        right: 22px;
+        bottom: 56px;
+        width: min(330px, calc(100% - 40px));
+        cursor: pointer;
+        user-select: none;
+        transition: transform 180ms ease, filter 180ms ease;
+      }
+
+      .compact-specimen:hover {
+        transform: translateY(-3px);
+        filter: brightness(1.08);
+      }
+
+      .compact-specimen:focus-visible,
+      .live-compact:focus-visible,
+      button:focus-visible,
+      input:focus-visible {
+        outline: 2px solid var(--mint);
+        outline-offset: 3px;
+      }
+
+      .compact-specimen .pet {
+        position: absolute;
+        left: -12px;
+        bottom: 25px;
+        z-index: 3;
+        transform: scale(0.82);
+        transform-origin: bottom center;
+      }
+
+      .compact-pill {
+        position: relative;
+        min-height: 92px;
+        padding: 15px 16px 13px 77px;
+        overflow: hidden;
+        border: 1px solid var(--line-bright);
+        border-radius: 25px;
+        background: linear-gradient(130deg, rgba(19, 32, 36, 0.9), rgba(10, 18, 21, 0.76));
+        box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(28px) saturate(125%);
+      }
+
+      .compact-pill::after {
+        content: "";
+        position: absolute;
+        left: 74px;
+        right: 18px;
+        bottom: 0;
+        height: 2px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, var(--mint) 57%, rgba(255, 255, 255, 0.08) 57%);
+      }
+
+      .compact-top,
+      .compact-task,
+      .compact-meta {
+        display: flex;
+        align-items: center;
+      }
+
+      .compact-top {
+        justify-content: space-between;
+        gap: 12px;
+        color: #94a5a3;
+        font-size: 10px;
+      }
+
+      .compact-top strong {
+        color: #dfe9e7;
+        font-family: Bahnschrift, sans-serif;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+      }
+
+      .compact-task {
+        gap: 8px;
+        margin-top: 8px;
+        min-width: 0;
+      }
+
+      .compact-task i {
+        width: 9px;
+        height: 9px;
+        flex: 0 0 auto;
+        border: 2px solid var(--mint);
+        border-radius: 50%;
+        box-shadow: 0 0 11px rgba(119, 226, 211, 0.45);
+      }
+
+      .compact-task span {
+        overflow: hidden;
+        color: #f2f7f6;
+        font-size: 13px;
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .compact-meta {
+        gap: 7px;
+      }
+
+      .coin-dot {
+        display: inline-grid;
+        width: 15px;
+        height: 15px;
+        place-items: center;
+        border: 1px solid rgba(255, 235, 166, 0.55);
+        border-radius: 50%;
+        color: #856514;
+        background: var(--gold);
+        box-shadow: 0 0 12px rgba(241, 199, 101, 0.22);
+        font-family: Bahnschrift, sans-serif;
+        font-size: 8px;
+        font-style: normal;
+        font-weight: 700;
+      }
+
+      .compact-help {
+        position: absolute;
+        right: 22px;
+        bottom: 168px;
+        width: 195px;
+        padding-left: 28px;
+        color: rgba(209, 224, 221, 0.48);
+        font-size: 11px;
+        line-height: 1.7;
+      }
+
+      .compact-help::before {
+        content: "";
+        position: absolute;
+        top: 8px;
+        left: 0;
+        width: 20px;
+        height: 1px;
+        background: rgba(119, 226, 211, 0.45);
+      }
+
+      .expanded-frame {
+        --panel-width: 526px;
+      }
+
+      .live-controls {
+        position: absolute;
+        top: 94px;
+        right: 28px;
+        z-index: 20;
+        display: flex;
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 12px;
+        background: rgba(3, 8, 10, 0.34);
+        backdrop-filter: blur(16px);
+      }
+
+      .live-controls button {
+        padding: 7px 11px;
+        border: 0;
+        border-radius: 8px;
+        color: #829390;
+        background: transparent;
+        cursor: pointer;
+        font-size: 11px;
+      }
+
+      .live-controls button.is-active {
+        color: #e6f3f0;
+        background: rgba(119, 226, 211, 0.1);
+        box-shadow: inset 0 0 0 1px rgba(119, 226, 211, 0.11);
+      }
+
+      .live-widget {
+        position: absolute;
+        right: 24px;
+        bottom: 50px;
+        z-index: 10;
+        width: min(var(--panel-width), calc(100% - 44px));
+        transition: width 260ms cubic-bezier(0.2, 0.75, 0.22, 1);
+      }
+
+      .task-panel {
+        position: relative;
+        min-height: 562px;
+        overflow: visible;
+        border: 1px solid rgba(224, 245, 242, 0.16);
+        border-radius: 28px;
+        background:
+          linear-gradient(135deg, rgba(22, 37, 42, 0.88), rgba(8, 16, 19, 0.82)),
+          rgba(11, 20, 23, 0.86);
+        box-shadow: 0 35px 90px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+        backdrop-filter: blur(34px) saturate(128%);
+        transform-origin: right bottom;
+        transition: opacity 180ms ease, transform 260ms cubic-bezier(0.2, 0.75, 0.22, 1), visibility 180ms;
+      }
+
+      .task-panel::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        border-radius: inherit;
+        background: linear-gradient(100deg, rgba(255, 255, 255, 0.045), transparent 30%, transparent 74%, rgba(119, 226, 211, 0.025));
+      }
+
+      .panel-pet {
+        position: absolute;
+        top: -58px;
+        left: 31px;
+        z-index: 8;
+        transform: scale(0.92);
+        transform-origin: bottom center;
+      }
+
+      .speech {
+        position: absolute;
+        top: -43px;
+        left: 124px;
+        z-index: 7;
+        padding: 8px 11px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px 12px 12px 3px;
+        color: #a8b9b6;
+        background: rgba(8, 15, 18, 0.8);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+        backdrop-filter: blur(16px);
+        font-size: 10px;
+        transition: color 180ms ease, border-color 180ms ease;
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 75px;
+        padding: 18px 20px 14px 120px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+      }
+
+      .today {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+
+      .today span {
+        color: #8fa09e;
+        font-size: 11px;
+      }
+
+      .today strong {
+        font-family: Bahnschrift, sans-serif;
+        font-size: 21px;
+        font-weight: 500;
+        letter-spacing: -0.04em;
+      }
+
+      .panel-tools {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .coin-balance {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 31px;
+        padding: 0 10px;
+        border: 1px solid rgba(241, 199, 101, 0.18);
+        border-radius: 10px;
+        color: #f2d98f;
+        background: rgba(241, 199, 101, 0.065);
+        font-family: Bahnschrift, sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .icon-button {
+        display: grid;
+        width: 31px;
+        height: 31px;
+        place-items: center;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        color: #82928f;
+        background: rgba(255, 255, 255, 0.025);
+        cursor: pointer;
+      }
+
+      .icon-button:hover {
+        color: var(--text);
+        border-color: rgba(119, 226, 211, 0.22);
+        background: rgba(119, 226, 211, 0.07);
+      }
+
+      .current-card {
+        position: relative;
+        margin: 15px 16px 0;
+        padding: 18px;
+        overflow: visible;
+        border: 1px solid rgba(119, 226, 211, 0.18);
+        border-radius: 20px;
+        background:
+          radial-gradient(circle at 88% 0%, rgba(119, 226, 211, 0.08), transparent 36%),
+          rgba(2, 10, 12, 0.44);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+      }
+
+      .current-label {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin: 0;
+        color: #8db0ab;
+        font-size: 10px;
+      }
+
+      .current-label i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--mint);
+        box-shadow: 0 0 10px rgba(119, 226, 211, 0.8);
+      }
+
+      .current-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 13px;
+        margin-top: 13px;
+      }
+
+      .task-ring {
+        position: relative;
+        width: 25px;
+        height: 25px;
+        flex: 0 0 auto;
+        padding: 0;
+        border: 1.5px solid rgba(119, 226, 211, 0.65);
+        border-radius: 50%;
+        background: rgba(119, 226, 211, 0.025);
+        box-shadow: inset 0 0 0 4px rgba(119, 226, 211, 0.02), 0 0 14px rgba(119, 226, 211, 0.08);
+        cursor: pointer;
+      }
+
+      .task-ring::after {
+        content: "";
+        position: absolute;
+        left: 7px;
+        top: 4px;
+        width: 6px;
+        height: 10px;
+        opacity: 0;
+        transform: rotate(45deg) scale(0.6);
+        border-right: 2px solid #06211e;
+        border-bottom: 2px solid #06211e;
+        transition: opacity 160ms ease, transform 160ms ease;
+      }
+
+      .current-card.is-complete .task-ring {
+        border-color: var(--mint);
+        background: var(--mint);
+      }
+
+      .current-card.is-complete .task-ring::after {
+        opacity: 1;
+        transform: rotate(45deg) scale(1);
+      }
+
+      .current-copy {
+        min-width: 0;
+      }
+
+      .current-copy h3 {
+        margin: -2px 0 5px;
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+      }
+
+      .current-copy p {
+        margin: 0;
+        color: #778885;
+        font-family: Bahnschrift, "Microsoft YaHei UI", sans-serif;
+        font-size: 10px;
+      }
+
+      .action-row {
+        display: grid;
+        grid-template-columns: 1.05fr 1fr;
+        gap: 8px;
+        margin-top: 17px;
+      }
+
+      .action-row button,
+      .quick-add-panel button,
+      .quick-add-form button {
+        height: 38px;
+        border-radius: 11px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .complete-button {
+        border: 1px solid rgba(119, 226, 211, 0.55);
+        color: #09201d;
+        background: linear-gradient(115deg, #8beddf, #64d4c7);
+        box-shadow: 0 8px 24px rgba(62, 193, 180, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+      }
+
+      .complete-button:hover {
+        filter: brightness(1.07);
+      }
+
+      .defer-button {
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        color: #c3d0ce;
+        background: rgba(255, 255, 255, 0.035);
+      }
+
+      .defer-button:hover {
+        border-color: rgba(242, 155, 110, 0.28);
+        background: rgba(242, 155, 110, 0.06);
+      }
+
+      .defer-menu {
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        top: calc(100% - 8px);
+        z-index: 30;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        padding: 8px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-5px) scale(0.98);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        background: rgba(7, 14, 17, 0.96);
+        box-shadow: 0 20px 42px rgba(0, 0, 0, 0.48);
+        backdrop-filter: blur(22px);
+        transition: 160ms ease;
+      }
+
+      .defer-menu.is-open {
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+      }
+
+      .defer-menu button {
+        padding: 9px 5px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 9px;
+        color: #9eafac;
+        background: rgba(255, 255, 255, 0.025);
+        cursor: pointer;
+        font-size: 10px;
+      }
+
+      .defer-menu button:hover {
+        color: #f0f6f5;
+        border-color: rgba(242, 155, 110, 0.22);
+        background: rgba(242, 155, 110, 0.07);
+      }
+
+      .queue-section {
+        padding: 18px 20px 0;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 7px;
+      }
+
+      .section-head h4 {
+        margin: 0;
+        color: #c9d5d3;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .section-head span {
+        color: #667774;
+        font-family: Bahnschrift, sans-serif;
+        font-size: 9px;
+        letter-spacing: 0.08em;
+      }
+
+      .queue {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .queue li {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        align-items: center;
+        min-height: 45px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+        transition: opacity 180ms ease, transform 180ms ease;
+      }
+
+      .queue li:last-child {
+        border-bottom: 0;
+      }
+
+      .queue-index {
+        color: #5f716e;
+        font-family: Bahnschrift, sans-serif;
+        font-size: 10px;
+      }
+
+      .queue-title {
+        overflow: hidden;
+        color: #b9c8c5;
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .queue time {
+        color: #61716f;
+        font-family: Bahnschrift, "Microsoft YaHei UI", sans-serif;
+        font-size: 9px;
+      }
+
+      .quick-add-panel {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 15px;
+      }
+
+      .quick-add-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 0 13px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #899a97;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .quick-add-toggle span {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .quick-add-toggle b {
+        color: var(--mint);
+        font-size: 17px;
+        font-weight: 300;
+      }
+
+      .quick-add-toggle kbd {
+        padding: 3px 6px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 5px;
+        color: #596a67;
+        background: rgba(0, 0, 0, 0.16);
+        font-family: Bahnschrift, sans-serif;
+        font-size: 8px;
+      }
+
+      .quick-add-form {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 7px;
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        transform: translateY(5px);
+        transition: max-height 200ms ease, opacity 160ms ease, transform 200ms ease, margin 200ms ease;
+      }
+
+      .quick-add-panel.is-open .quick-add-form {
+        max-height: 50px;
+        margin-top: 7px;
+        opacity: 1;
+        transform: none;
+      }
+
+      .quick-add-form input {
+        min-width: 0;
+        height: 38px;
+        padding: 0 12px;
+        border: 1px solid rgba(119, 226, 211, 0.22);
+        border-radius: 11px;
+        outline: 0;
+        color: #e9f3f1;
+        background: rgba(2, 8, 10, 0.62);
+        font-size: 11px;
+      }
+
+      .quick-add-form input::placeholder {
+        color: #536360;
+      }
+
+      .quick-add-form button {
+        padding: 0 13px;
+        border: 1px solid rgba(119, 226, 211, 0.34);
+        color: var(--mint);
+        background: rgba(119, 226, 211, 0.08);
+      }
+
+      .live-compact {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        width: min(360px, 100%);
+        min-height: 86px;
+        padding: 13px 16px 11px 89px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(16px) scale(0.94);
+        border: 1px solid var(--line-bright);
+        border-radius: 25px;
+        color: inherit;
+        background: linear-gradient(130deg, rgba(19, 32, 36, 0.93), rgba(8, 16, 19, 0.82));
+        box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(28px) saturate(125%);
+        cursor: pointer;
+        text-align: left;
+        transition: opacity 190ms ease 80ms, transform 260ms cubic-bezier(0.2, 0.75, 0.22, 1), visibility 190ms;
+      }
+
+      .live-compact .pet {
+        position: absolute;
+        left: 2px;
+        bottom: 10px;
+        transform: scale(0.8);
+        transform-origin: bottom center;
+      }
+
+      .live-compact-copy {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .live-compact-copy small {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #78908c;
+        font-size: 9px;
+      }
+
+      .live-compact-copy small i {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--mint);
+        box-shadow: 0 0 8px rgba(119, 226, 211, 0.7);
+      }
+
+      .live-compact-copy strong {
+        display: block;
+        overflow: hidden;
+        margin-top: 5px;
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .live-compact-meta {
+        display: grid;
+        justify-items: end;
+        gap: 5px;
+        margin-left: 12px;
+        color: #98aaa7;
+        font-family: Bahnschrift, sans-serif;
+        font-size: 10px;
+      }
+
+      .live-widget.is-collapsed .task-panel {
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(18px) scale(0.82);
+        pointer-events: none;
+      }
+
+      .live-widget.is-collapsed .live-compact {
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+      }
+
+      .completion-pop {
+        position: absolute;
+        top: 12px;
+        left: 70px;
+        z-index: 20;
+        opacity: 0;
+        pointer-events: none;
+        color: var(--gold);
+        font-family: Bahnschrift, sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        text-shadow: 0 0 14px rgba(241, 199, 101, 0.55);
+      }
+
+      .completion-pop.play {
+        animation: coinPop 900ms ease-out;
+      }
+
+      .frame-footer {
+        position: absolute;
+        left: 26px;
+        bottom: 22px;
+        z-index: 2;
+        color: rgba(208, 223, 220, 0.36);
+        font-size: 10px;
+      }
+
+      .specimen-frame .frame-footer {
+        bottom: 25px;
+      }
+
+      .expanded-frame .frame-footer {
+        bottom: 22px;
+      }
+
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 26px;
+        z-index: 100;
+        padding: 10px 14px;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, 12px);
+        border: 1px solid rgba(119, 226, 211, 0.18);
+        border-radius: 12px;
+        color: #c9dad7;
+        background: rgba(5, 12, 14, 0.88);
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+        backdrop-filter: blur(20px);
+        font-size: 11px;
+        transition: 180ms ease;
+      }
+
+      .toast.is-visible {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+
+      @keyframes petGlow {
+        0%, 100% { opacity: 0.65; transform: scale(0.94); }
+        50% { opacity: 1; transform: scale(1.04); }
+      }
+
+      @keyframes blink {
+        0%, 44%, 48%, 100% { transform: scaleY(1); }
+        46% { transform: scaleY(0.12); }
+      }
+
+      @keyframes coinPop {
+        0% { opacity: 0; transform: translateY(5px) scale(0.7); }
+        25% { opacity: 1; transform: translateY(-8px) scale(1.08); }
+        100% { opacity: 0; transform: translateY(-28px) scale(0.96); }
+      }
+
+      @media (max-width: 1120px) {
+        .comparison-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .state-frame {
+          min-height: 680px;
+        }
+
+        .specimen-frame {
+          min-height: 430px;
+        }
+
+        .compact-specimen {
+          right: 28px;
+        }
+
+        .expanded-frame {
+          --panel-width: 526px;
+        }
+      }
+
+      @media (max-width: 680px) {
+        .page {
+          width: min(100% - 24px, 1500px);
+          padding-top: 18px;
+        }
+
+        .showcase-header {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .header-note {
+          text-align: left;
+        }
+
+        .comparison-grid,
+        .state-frame {
+          min-width: 0;
+        }
+
+        .expanded-frame {
+          min-height: 690px;
+        }
+
+        .live-widget {
+          right: 12px;
+          bottom: 42px;
+          width: calc(100% - 24px);
+        }
+
+        .panel-head {
+          padding-left: 104px;
+        }
+
+        .live-controls {
+          top: 92px;
+          right: 16px;
+        }
+
+        .desktop-meta {
+          display: none;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          scroll-behavior: auto !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+      html.capture-mode *,
+      html.capture-mode *::before,
+      html.capture-mode *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    </style>
+    <script>if (new URLSearchParams(location.search).has('capture')) document.documentElement.classList.add('capture-mode');</script>
+  </head>
+  <body>
+    <main class="page">
+      <header class="showcase-header">
+        <div class="theme-id">
+          <div class="theme-mark" aria-hidden="true"></div>
+          <div>
+            <p class="kicker">DESIGN DIRECTION · 02</p>
+            <h1 class="theme-title">夜航玻璃 <span>/ 深色透明风</span></h1>
+          </div>
+        </div>
+        <p class="header-note"><strong>面板安静，宠物发光。</strong> 以灰黑玻璃和低饱和青绿维持专注，金币与宠物只保留少量暖色。</p>
+      </header>
+
+      <section class="comparison-grid" aria-label="收起态与展开态设计对照">
+        <article class="state-frame specimen-frame">
+          <header class="frame-head">
+            <div>
+              <p class="frame-number">01 / COMPACT</p>
+              <h2>收起态</h2>
+            </div>
+            <span class="frame-chip"><i></i>桌面右下角</span>
+          </header>
+
+          <div class="desktop-meta" aria-hidden="true">
+            <time>14:32</time>
+            <span>7 月 10 日 · 周五</span>
+          </div>
+
+          <p class="compact-help">只占一条通知的高度。看得见下一件事，也不会挡住桌面。</p>
+
+          <div class="compact-specimen" role="button" tabindex="0" id="compactSpecimen" aria-label="点击在右侧演示展开">
+            <div class="pet" aria-hidden="true">
+              <span class="pet-ear left"></span>
+              <span class="pet-ear right"></span>
+              <span class="pet-body">
+                <i class="pet-eye left"></i><i class="pet-eye right"></i><i class="pet-mouth"></i><i class="pet-belly"></i>
+              </span>
+              <span class="pet-tail"></span><span class="pet-halo"></span>
+            </div>
+            <div class="compact-pill">
+              <div class="compact-top">
+                <strong>现在做 · 4 / 7</strong>
+                <span class="compact-meta"><i class="coin-dot">●</i><b data-coins>12</b></span>
+              </div>
+              <div class="compact-task"><i></i><span data-current-title>整理桌面待办设计方案</span></div>
+            </div>
+          </div>
+
+          <div class="wall-line" aria-hidden="true"></div>
+          <div class="desktop-dock" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <span class="frame-footer">单击宠物或任务胶囊即可展开</span>
+        </article>
+
+        <article class="state-frame expanded-frame">
+          <header class="frame-head">
+            <div>
+              <p class="frame-number">02 / EXPANDED</p>
+              <h2>展开态 · 可交互</h2>
+            </div>
+            <span class="frame-chip"><i></i>本地运行</span>
+          </header>
+
+          <div class="live-controls" aria-label="切换展开状态">
+            <button type="button" data-live-state="collapsed">收起</button>
+            <button type="button" data-live-state="expanded" class="is-active">展开</button>
+          </div>
+
+          <div class="desktop-meta" aria-hidden="true">
+            <time>14:32</time>
+            <span>FOCUS DESKTOP</span>
+          </div>
+
+          <div class="live-widget" id="liveWidget">
+            <section class="task-panel" aria-label="展开的桌面宠物待办">
+              <div class="panel-pet pet" aria-label="宠物团子">
+                <span class="pet-ear left"></span>
+                <span class="pet-ear right"></span>
+                <span class="pet-body">
+                  <i class="pet-eye left"></i><i class="pet-eye right"></i><i class="pet-mouth"></i><i class="pet-belly"></i>
+                </span>
+                <span class="pet-tail"></span><span class="pet-halo"></span>
+                <span class="completion-pop" id="completionPop">+1</span>
+              </div>
+              <span class="speech" id="petSpeech">先把这一件做好</span>
+
+              <header class="panel-head">
+                <div class="today"><span>今天</span><strong><b data-done>4</b> / 7</strong></div>
+                <div class="panel-tools">
+                  <span class="coin-balance"><i class="coin-dot">●</i><b data-coins>12</b></span>
+                  <button class="icon-button" type="button" id="minimizeButton" aria-label="收起到桌面右下角">—</button>
+                  <button class="icon-button" type="button" aria-label="更多选项">···</button>
+                </div>
+              </header>
+
+              <article class="current-card" id="currentCard">
+                <p class="current-label"><i></i>现在做</p>
+                <div class="current-row">
+                  <button class="task-ring" type="button" id="ringComplete" aria-label="完成当前任务"></button>
+                  <div class="current-copy">
+                    <h3 data-current-title>整理桌面待办设计方案</h3>
+                    <p>加入队列于 10:24 · 完成可获得 1 金币</p>
+                  </div>
+                </div>
+                <div class="action-row">
+                  <button class="complete-button" type="button" id="completeButton">完成</button>
+                  <button class="defer-button" type="button" id="deferButton" aria-expanded="false">暂时做不了</button>
+                </div>
+                <div class="defer-menu" id="deferMenu" aria-label="暂时做不了的处理方式">
+                  <button type="button" data-defer="延后到明天">延后到明天</button>
+                  <button type="button" data-defer="标记为阻塞">标记阻塞</button>
+                  <button type="button" data-defer="不再继续">不再继续</button>
+                </div>
+              </article>
+
+              <section class="queue-section">
+                <div class="section-head"><h4>接下来</h4><span>QUEUE · 03</span></div>
+                <ol class="queue" id="queueList">
+                  <li><span class="queue-index">01</span><span class="queue-title">补充路线图验收标准</span><time>今天</time></li>
+                  <li><span class="queue-index">02</span><span class="queue-title">整理月度巡检材料</span><time>今天</time></li>
+                  <li><span class="queue-index">03</span><span class="queue-title">回复项目反馈</span><time>明天</time></li>
+                </ol>
+              </section>
+
+              <div class="quick-add-panel" id="quickAddPanel">
+                <button class="quick-add-toggle" type="button" id="quickAddToggle" aria-expanded="false">
+                  <span><b>＋</b>快速记一件事</span><kbd>Ctrl Space</kbd>
+                </button>
+                <form class="quick-add-form" id="quickAddForm">
+                  <input id="quickAddInput" aria-label="新待办标题" placeholder="输入后回车，加入队尾" autocomplete="off" />
+                  <button type="submit">加入</button>
+                </form>
+              </div>
+            </section>
+
+            <button class="live-compact" type="button" id="liveCompact" aria-label="展开任务面板">
+              <div class="pet" aria-hidden="true">
+                <span class="pet-ear left"></span>
+                <span class="pet-ear right"></span>
+                <span class="pet-body">
+                  <i class="pet-eye left"></i><i class="pet-eye right"></i><i class="pet-mouth"></i><i class="pet-belly"></i>
+                </span>
+                <span class="pet-tail"></span><span class="pet-halo"></span>
+              </div>
+              <span class="live-compact-copy"><small><i></i>现在做 · <b data-done>4</b>/7</small><strong data-current-title>整理桌面待办设计方案</strong></span>
+              <span class="live-compact-meta"><span><i class="coin-dot">●</i> <b data-coins>12</b></span><b>展开 ↗</b></span>
+            </button>
+          </div>
+
+          <div class="wall-line" aria-hidden="true"></div>
+          <div class="desktop-dock" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <span class="frame-footer">可试：收起 / 完成 / 暂时做不了 / 快速新增</span>
+        </article>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      (() => {
+        const widget = document.getElementById("liveWidget");
+        const compactSpecimen = document.getElementById("compactSpecimen");
+        const liveCompact = document.getElementById("liveCompact");
+        const minimizeButton = document.getElementById("minimizeButton");
+        const stateButtons = [...document.querySelectorAll("[data-live-state]")];
+        const completeButton = document.getElementById("completeButton");
+        const ringComplete = document.getElementById("ringComplete");
+        const currentCard = document.getElementById("currentCard");
+        const queueList = document.getElementById("queueList");
+        const deferButton = document.getElementById("deferButton");
+        const deferMenu = document.getElementById("deferMenu");
+        const quickAddPanel = document.getElementById("quickAddPanel");
+        const quickAddToggle = document.getElementById("quickAddToggle");
+        const quickAddForm = document.getElementById("quickAddForm");
+        const quickAddInput = document.getElementById("quickAddInput");
+        const completionPop = document.getElementById("completionPop");
+        const petSpeech = document.getElementById("petSpeech");
+        const toast = document.getElementById("toast");
+
+        let done = 4;
+        let coins = 12;
+        let toastTimer;
+        let isCompleting = false;
+
+        function showToast(message) {
+          toast.textContent = message;
+          toast.classList.add("is-visible");
+          window.clearTimeout(toastTimer);
+          toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 1900);
+        }
+
+        function setState(state) {
+          const collapsed = state === "collapsed";
+          widget.classList.toggle("is-collapsed", collapsed);
+          stateButtons.forEach((button) => {
+            button.classList.toggle("is-active", button.dataset.liveState === state);
+          });
+          deferMenu.classList.remove("is-open");
+          deferButton.setAttribute("aria-expanded", "false");
+        }
+
+        function updateCounters() {
+          document.querySelectorAll("[data-done]").forEach((node) => (node.textContent = done));
+          document.querySelectorAll("[data-coins]").forEach((node) => (node.textContent = coins));
+        }
+
+        function updateCurrentTitle(title) {
+          document.querySelectorAll("[data-current-title]").forEach((node) => (node.textContent = title));
+        }
+
+        function completeCurrent() {
+          if (isCompleting) return;
+          isCompleting = true;
+          currentCard.classList.add("is-complete");
+          completionPop.classList.remove("play");
+          void completionPop.offsetWidth;
+          completionPop.classList.add("play");
+          petSpeech.textContent = "做得好，金币到账";
+
+          window.setTimeout(() => {
+            done = Math.min(7, done + 1);
+            coins += 1;
+            const firstTask = queueList.querySelector("li");
+            if (firstTask) {
+              const nextTitle = firstTask.querySelector(".queue-title").textContent;
+              firstTask.style.opacity = "0";
+              firstTask.style.transform = "translateX(12px)";
+              window.setTimeout(() => {
+                firstTask.remove();
+                updateCurrentTitle(nextTitle);
+                [...queueList.children].forEach((item, index) => {
+                  item.querySelector(".queue-index").textContent = String(index + 1).padStart(2, "0");
+                });
+                currentCard.classList.remove("is-complete");
+                petSpeech.textContent = "下一件也在这里";
+                isCompleting = false;
+              }, 180);
+            } else {
+              currentCard.classList.remove("is-complete");
+              updateCurrentTitle("今天的任务都完成了");
+              petSpeech.textContent = "今天辛苦啦";
+              isCompleting = false;
+            }
+            updateCounters();
+            showToast("已完成 · 获得 1 金币");
+          }, 480);
+        }
+
+        stateButtons.forEach((button) => button.addEventListener("click", () => setState(button.dataset.liveState)));
+        minimizeButton.addEventListener("click", () => setState("collapsed"));
+        liveCompact.addEventListener("click", () => setState("expanded"));
+
+        compactSpecimen.addEventListener("click", () => {
+          setState("expanded");
+          showToast("已在右侧展开任务面板");
+        });
+        compactSpecimen.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            compactSpecimen.click();
+          }
+        });
+
+        completeButton.addEventListener("click", completeCurrent);
+        ringComplete.addEventListener("click", completeCurrent);
+
+        deferButton.addEventListener("click", () => {
+          const open = deferMenu.classList.toggle("is-open");
+          deferButton.setAttribute("aria-expanded", String(open));
+        });
+
+        deferMenu.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-defer]");
+          if (!button) return;
+          deferMenu.classList.remove("is-open");
+          deferButton.setAttribute("aria-expanded", "false");
+          petSpeech.textContent = "调整计划也没关系";
+          showToast(`${button.dataset.defer} · 已保留到回顾记录`);
+        });
+
+        quickAddToggle.addEventListener("click", () => {
+          const open = quickAddPanel.classList.toggle("is-open");
+          quickAddToggle.setAttribute("aria-expanded", String(open));
+          if (open) window.setTimeout(() => quickAddInput.focus(), 180);
+        });
+
+        quickAddForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const title = quickAddInput.value.trim();
+          if (!title) {
+            quickAddInput.focus();
+            return;
+          }
+
+          const item = document.createElement("li");
+          item.innerHTML = `<span class="queue-index">${String(queueList.children.length + 1).padStart(2, "0")}</span><span class="queue-title"></span><time>稍后</time>`;
+          item.querySelector(".queue-title").textContent = title;
+          queueList.appendChild(item);
+          quickAddInput.value = "";
+          quickAddPanel.classList.remove("is-open");
+          quickAddToggle.setAttribute("aria-expanded", "false");
+          petSpeech.textContent = "记下了，不会忘";
+          showToast("已加入队尾");
+        });
+
+        document.addEventListener("keydown", (event) => {
+          if (event.ctrlKey && event.code === "Space") {
+            event.preventDefault();
+            setState("expanded");
+            quickAddPanel.classList.add("is-open");
+            quickAddToggle.setAttribute("aria-expanded", "true");
+            window.setTimeout(() => quickAddInput.focus(), 180);
+          }
+          if (event.key === "Escape") {
+            deferMenu.classList.remove("is-open");
+            deferButton.setAttribute("aria-expanded", "false");
+            quickAddPanel.classList.remove("is-open");
+            quickAddToggle.setAttribute("aria-expanded", "false");
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1f382f" />
+  <title>代办 · 桌面宠物待办设计预览</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="paper-noise" aria-hidden="true"></div>
+    <div class="design-shell">
+      <aside class="design-rail">
+        <header class="brand-block">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <div>
+            <p class="eyebrow">DESIGN PREVIEW · 01</p>
+        <h1>代办</h1>
+            <p class="brand-subtitle">桌面宠物待办</p>
+          </div>
+        </header>
+
+        <p class="brand-intro">把想到的事记下来，一件件完成；现实里的进度，会成为桌面伙伴成长的养分。</p>
+
+        <nav class="scene-nav" aria-label="设计场景">
+          <button class="scene-button is-active" data-scene="desktop">
+            <span class="scene-number">01</span>
+            <span><strong>桌面执行</strong><small>当前任务与顺序队列</small></span>
+          </button>
+          <button class="scene-button" data-scene="capture">
+            <span class="scene-number">02</span>
+            <span><strong>随手记录</strong><small>一句话，回车入队</small></span>
+          </button>
+          <button class="scene-button" data-scene="exception">
+            <span class="scene-number">03</span>
+            <span><strong>暂时做不了</strong><small>延后、阻塞或放弃</small></span>
+          </button>
+          <button class="scene-button" data-scene="home">
+            <span class="scene-number">04</span>
+            <span><strong>宠物小屋</strong><small>金币、喂食与成长</small></span>
+          </button>
+          <button class="scene-button" data-scene="history">
+            <span class="scene-number">05</span>
+            <span><strong>本周回顾</strong><small>历史自然变成周报</small></span>
+          </button>
+        </nav>
+
+        <div class="principle-card">
+          <span id="principleIndex">原则 01</span>
+          <p id="principleText">悬浮层只负责“记下来”和“做下一件”，不把完整管理后台塞进桌面。</p>
+        </div>
+
+        <footer class="rail-footer">
+          <span>工作名称，可随时更换</span>
+          <strong>v0.1</strong>
+        </footer>
+      </aside>
+
+      <main class="preview-area">
+        <header class="preview-header">
+          <div>
+            <p class="eyebrow" id="sceneKicker">CORE LOOP / 核心闭环</p>
+            <h2 id="sceneTitle">桌面上，只留下一件正在做的事</h2>
+          </div>
+          <div class="header-actions">
+            <button class="ghost-button" id="resetDemo">重置演示</button>
+            <span class="status-dot"><i></i> 原型可交互</span>
+          </div>
+        </header>
+
+        <section class="desktop-canvas" id="desktopCanvas" data-active-scene="desktop">
+          <div class="canvas-grain" aria-hidden="true"></div>
+          <div class="desktop-topbar">
+            <span>DESKTOP · PERSONAL</span>
+            <span>7 月 10 日&nbsp;&nbsp;周五&nbsp;&nbsp;14:32</span>
+          </div>
+
+          <div class="desktop-quote" aria-hidden="true">
+            <span>DO</span>
+            <span>ONE</span>
+            <span>THING</span>
+          </div>
+
+          <section class="scene scene-desktop is-visible" data-scene-panel="desktop" aria-label="桌面执行场景">
+            <div class="floating-cluster">
+              <div class="pet-wrap pet-small" aria-label="桌面宠物团子">
+                <div class="pet-shadow"></div>
+                <div class="pet pet-idle" data-pet>
+                  <span class="ear ear-left"></span>
+                  <span class="ear ear-right"></span>
+                  <span class="pet-body">
+                    <i class="eye eye-left"></i>
+                    <i class="eye eye-right"></i>
+                    <i class="mouth"></i>
+                    <i class="belly"></i>
+                  </span>
+                  <span class="tail"></span>
+                  <span class="coin-pop">+1</span>
+                </div>
+              </div>
+
+              <div class="task-window">
+                <div class="window-handle"><span></span><span></span><span></span></div>
+                <div class="task-header">
+                  <div><small>今天</small><strong><span id="doneCount">4</span> / 7</strong></div>
+                  <button class="coin-balance" data-go-scene="home" aria-label="查看金币">
+                    <span class="coin-icon">●</span><strong data-coin-count>12</strong>
+                  </button>
+                </div>
+
+                <article class="current-task">
+                  <p class="task-label"><span></span>现在做</p>
+                  <div class="current-task-row">
+                    <button class="complete-ring" id="completeTask" aria-label="完成当前任务"><i></i></button>
+                    <div>
+                      <h3 id="currentTaskTitle">整理桌面待办设计方案</h3>
+                      <p>加入队列于 10:24</p>
+                    </div>
+                  </div>
+                  <div class="task-actions">
+                    <button class="primary-action" id="completeTaskText">完成</button>
+                    <button class="subtle-action" data-go-scene="exception">暂时做不了</button>
+                  </div>
+                </article>
+
+                <div class="queue-block">
+                  <div class="section-title"><span>接下来</span><button>查看全部 6</button></div>
+                  <ol class="task-queue" id="taskQueue">
+                    <li><span>1</span><p>补充路线图验收标准</p><time>今天</time></li>
+                    <li><span>2</span><p>整理月度巡检材料</p><time>今天</time></li>
+                    <li><span>3</span><p>回复项目反馈</p><time>明天</time></li>
+                  </ol>
+                </div>
+
+                <button class="quick-add" data-go-scene="capture"><span>＋</span>记一件事<kbd>Ctrl Space</kbd></button>
+              </div>
+            </div>
+          </section>
+
+          <section class="scene scene-capture" data-scene-panel="capture" aria-label="随手记录场景">
+            <div class="capture-dialog">
+              <div class="capture-topline">
+                <span class="tiny-pet" aria-hidden="true">●ᴗ●</span>
+                <span>想到什么，就先放进来</span>
+                <kbd>ESC</kbd>
+              </div>
+              <label for="captureInput">新待办</label>
+              <div class="capture-input-wrap">
+                <input id="captureInput" value="更新部署说明文档" autocomplete="off" />
+                <button id="saveCapture">加入队尾 ↵</button>
+              </div>
+              <div class="capture-meta">
+                <span><i></i>只需要标题</span>
+                <span>将排在第 7 项</span>
+              </div>
+            </div>
+            <div class="capture-result" id="captureResult">
+              <span>✓</span>
+              <div><strong>已经记下</strong><small>没有打断当前任务</small></div>
+            </div>
+          </section>
+
+          <section class="scene scene-exception" data-scene-panel="exception" aria-label="暂时做不了场景">
+            <div class="decision-card">
+              <header>
+                <button class="back-button" data-go-scene="desktop">←</button>
+                <div><small>当前任务</small><h3>测试登录功能</h3></div>
+              </header>
+              <div class="decision-copy">
+                <span>暂时做不了</span>
+                <p>选一个真实原因，任务不会消失，也不会扣金币。</p>
+              </div>
+              <div class="decision-options">
+                <button data-decision="delay">
+                  <i class="decision-icon icon-delay">↻</i>
+                  <span><strong>稍后再做</strong><small>明天、下周或指定时间</small></span>
+                  <b>→</b>
+                </button>
+                <button data-decision="blocked">
+                  <i class="decision-icon icon-blocked">×</i>
+                  <span><strong>被卡住</strong><small>等待权限、资料或其他人</small></span>
+                  <b>→</b>
+                </button>
+                <button data-decision="abandon">
+                  <i class="decision-icon icon-abandon">—</i>
+                  <span><strong>不再做</strong><small>保留调整原因，进入回顾</small></span>
+                  <b>→</b>
+                </button>
+              </div>
+              <div class="reason-panel" id="reasonPanel">
+                <label id="reasonLabel" for="reasonInput">阻塞原因</label>
+                <div><input id="reasonInput" value="等待测试环境权限" /><button id="confirmDecision">确认并做下一件</button></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="scene scene-home" data-scene-panel="home" aria-label="宠物小屋场景">
+            <div class="home-window">
+              <header class="home-header">
+                <div><small>团子的小屋</small><h3>一起长大，第 12 天</h3></div>
+                <button class="coin-balance light"><span class="coin-icon">●</span><strong data-coin-count>12</strong></button>
+              </header>
+
+              <div class="room-scene">
+                <div class="wall-print">把事情<br />一件件<br />做好</div>
+                <div class="window-sun"><span></span></div>
+                <div class="plant"><i></i><i></i><i></i><b></b></div>
+                <div class="floor-rug"></div>
+                <div class="pet-wrap pet-large">
+                  <div class="pet-shadow"></div>
+                  <div class="pet pet-idle" data-pet>
+                    <span class="ear ear-left"></span>
+                    <span class="ear ear-right"></span>
+                    <span class="pet-body">
+                      <i class="eye eye-left"></i>
+                      <i class="eye eye-right"></i>
+                      <i class="mouth"></i>
+                      <i class="belly"></i>
+                    </span>
+                    <span class="tail"></span>
+                  </div>
+                </div>
+                <div class="pet-speech" id="petSpeech">再完成一件，就够买小鱼干啦。</div>
+              </div>
+
+              <div class="care-panel">
+                <div class="growth-card">
+                  <div><small>成长阶段</small><strong>幼崽 · 3 / 5</strong></div>
+                  <div class="growth-track"><i id="growthBar"></i></div>
+                  <p>还差 2 次喂食，成长为少年伙伴</p>
+                </div>
+                <div class="food-list">
+                  <button class="food-item" data-cost="3" data-food="小鱼干">
+                    <span class="food-art fish">&lt;°)))彡</span>
+                    <span><strong>小鱼干</strong><small>成长 +1</small></span>
+                    <b><i class="coin-icon">●</i> 3</b>
+                  </button>
+                  <button class="food-item" data-cost="5" data-food="云朵面包">
+                    <span class="food-art bread">☁</span>
+                    <span><strong>云朵面包</strong><small>成长 +1</small></span>
+                    <b><i class="coin-icon">●</i> 5</b>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="scene scene-history" data-scene-panel="history" aria-label="本周回顾场景">
+            <div class="history-window">
+              <header class="history-header">
+                <div><p class="eyebrow">WEEK 28</p><h3>这一周，认真生活过</h3><span>7 月 6 日 — 7 月 12 日</span></div>
+                <button class="copy-report" id="copyReport">复制周报</button>
+              </header>
+              <div class="week-stats">
+                <div><small>完成</small><strong>18</strong><span>件事情</span></div>
+                <div><small>获得</small><strong>18</strong><span>枚金币</span></div>
+                <div><small>成长</small><strong>+4</strong><span>点亲密度</span></div>
+                <div class="pet-week"><span>●ᴗ●</span><p>这周也辛苦啦</p></div>
+              </div>
+              <div class="report-grid">
+                <section>
+                  <header><span class="report-dot done"></span><strong>本周完成</strong><b>18</b></header>
+                  <ul>
+                    <li><span>月度巡检报告生成与验证</span><time>周一</time></li>
+                    <li><span>登录接口异常修复</span><time>周三</time></li>
+                    <li><span>部署说明文档更新</span><time>今天</time></li>
+                  </ul>
+                </section>
+                <section>
+                  <header><span class="report-dot active"></span><strong>进行中</strong><b>3</b></header>
+                  <ul><li><span>桌面宠物待办设计</span><time>今天</time></li></ul>
+                </section>
+                <section>
+                  <header><span class="report-dot blocked"></span><strong>阻塞事项</strong><b>1</b></header>
+                  <ul><li><span>登录功能测试</span><em>等待测试环境权限</em></li></ul>
+                </section>
+                <section>
+                  <header><span class="report-dot changed"></span><strong>计划调整</strong><b>2</b></header>
+                  <ul><li><span>旧方案调研</span><em>改用官方 SDK</em></li></ul>
+                </section>
+              </div>
+            </div>
+          </section>
+
+          <div class="demo-toast" id="demoToast" role="status">
+            <span>✓</span><p id="toastText">任务完成，金币 +1</p>
+          </div>
+        </section>
+
+        <footer class="preview-footer">
+          <p id="sceneNote">完成后，下一件事自然顶上来；金币反馈短暂出现，不打断当前工作。</p>
+          <div><span>1280 × 760</span><span>桌面原型</span></div>
+        </footer>
+      </main>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+</html>

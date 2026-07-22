@@ -1,0 +1,106 @@
+# 代办当前阶段 Todo：统一待办列表与真实试用反馈
+
+## 当前任务列表（实时）
+- [x] LIST-1 冻结统一列表、任意完成与重排契约
+- [x] LIST-2 实现任意任务完成与队列顺序持久化
+- [x] LIST-3 实现逐项勾选、拖动和键盘重排界面
+- [x] LIST-4 完成回归、文档同步与可试用构建
+- [x] FEEDBACK-1 修复托盘打开模式并同步真实窗口状态
+- [x] FEEDBACK-2 完整移除无实际价值的鼠标穿透能力
+- [x] FEEDBACK-3 增加逐项删除并保留可审计历史
+- [x] FEEDBACK-4 增加未完成待办行内标题修改并保留前后标题历史
+- [x] FEEDBACK-5 增加可选期限、紧凑标签并保留前后期限历史
+- [x] FEEDBACK-6 优化胶囊空状态与直接隐藏入口
+- [x] FEEDBACK-7 调整胶囊单行布局与向下隐藏箭头
+- [x] FEEDBACK-8 调整完成记录布局与撤销图标
+- [x] FEEDBACK-9 将待办与完成记录改为列表内部滚动
+- [x] FEEDBACK-10 将用户可见产品名称统一为“代办”
+- [x] FEEDBACK-11 移除托盘图标白色底板并验证透明小图标
+- [x] FEEDBACK-12 增加待办与完成记录的当前页面搜索
+
+## 当前指针
+- 阶段状态：LIST-1 至 LIST-4、FEEDBACK-1 至 FEEDBACK-12 已完成源码、自动验证、正式构建和实机验收
+- 当前结果：待办与完成记录使用共享临时搜索栏；`Ctrl+F` / 更多菜单进入，只按当前页标题筛选，搜索态保留行级操作并锁住重排；合成 smoke 与正式数据只读完整性核对均通过
+- 下一项：交给用户试用长列表搜索；根据下一条真实反馈继续完善待办主功能
+
+## 后续记录（追加）
+- 初始化：用户根据当前生产界面截图提出界面杂乱、提示过多、内容拥挤
+- 范围：本轮先做界面减法，不扩展宠物、AI、日历或新的任务状态命令
+- UI-1 完成：展开态只保留快速记录、当前任务、接下来和完成记录入口；完成记录改为独立页
+- UI-2 完成：隐藏和检查收进右上角更多菜单；宠物与贴边入口不再占用主界面
+- 前端验证：23 项测试通过，新增界面壳切换与 Esc 返回顺序测试
+- UI-3 完成：统一门禁前端 23 项、Rust 24 项通过；真实桌面联合冒烟 `passed=true`
+- 视觉预览说明：浏览器安全策略拒绝本地 data URL，未绕过；以真实 Tauri/WebView 联合冒烟和界面契约为准
+- UI-4 完成：README、界面说明、路线图、架构说明和桌面实验文档已同步，宠物/AI/日历明确暂停
+- 上一阶段构建已经被当前实现取代；本机构建大小、进程和哈希不作为公开源码契约
+- 上一版发布验证：release `--smoke` 返回 `passed=true`；该结果已被本阶段的新构建与联合冒烟取代
+- 新阶段：用户真实试用后确认不需要独立“当前任务完成”按钮；每条待办都应可勾选，列表应可调整顺序
+- 新阶段交互口径：统一待办列表；任意行可完成；拖动调整顺序；第一行作为胶囊中的下一件
+- LIST-1 完成：契约记录在 `docs/stages/统一待办列表与重排方案-v0.1.md`；不新增第二套排序事实
+- 上一阶段迁移决策：沿用 `queue_position`，schema v2 仅扩展重排事件；当时文件账本升级前生成 v1 一致性备份
+- LIST-2 完成：任意立即待办可完成；重排在单事务更新完整顺序、追加 `queue_reordered` 并刷新真实队首
+- 数据升级：合成填充的 v1 磁盘样本已覆盖迁移前备份、v2 增量迁移、旧回执重放、旧完成撤销和新重排写入
+- LIST-3 完成：展开态改为统一列表；每行圆形勾选框、标题和拖动柄；第一行只用细暖色线标记
+- 键盘交互：排序柄支持 `Alt + ↑/↓`；完成与重排后恢复相邻控件或原排序柄焦点
+- 桌面联合冒烟：`passed=true`，覆盖非首项完成、重排后胶囊队首、幂等、撤销和完整性
+- 标题修改前的阶段构建仅作为历史基线，已经被当前实现取代；历史本机构建标识不纳入公开记录
+- FEEDBACK-4 前的迁移路径已用合成磁盘样本验证旧版本一致性备份与升级；后续迁移能力最终收口到 schema v4
+- 拖动验证：本地浏览器物理拖动模拟不产生 `dragstart`；事件链回归确认 `dragstart → dragover → drop → dragend` 只提交一次完整顺序，正式 Tauri 配置满足 Windows HTML5 拖放要求
+- LIST-4 完成：README、产品方案、路线图、交互说明、架构说明、账本规则、技术实验和源码证据索引已同步；统一门禁、桌面联合冒烟、发布构建与磁盘迁移路径均已完成验证
+- 用户反馈收口：托盘菜单“打开”和托盘单击统一进入 `Expanded`；每次 Rust 模式变化通过 `window-status-changed` 同步 DOM，不再出现状态与页面形态脱节
+- 能力减法：`set_click_through`、`clickThrough`、菜单入口和相关测试已完整移除，不保留旧入口或静默回退
+- 逐项删除：每行删除入口调用 `delete_task({ operationId, taskId })`；领域层用 `TaskWrite::Update` 写成 `abandoned`，固定保留“用户删除”原因和 `action=delete` 元数据，不物理删除、不产生奖励
+- FEEDBACK-4 交互：双击标题或聚焦后按 `Enter` / `F2` 进入行内编辑；`Enter` 或失焦保存，`Esc` 取消且不收起窗口；输入法组合输入安全，空白和未变化标题不提交
+- FEEDBACK-4 账本：`update_task_title({ operationId, taskId, title })` 只接受立即待办；追加 `title_updated`，metadata 保存 `beforeTitle` / `afterTitle`，不改变状态、顺序或金币
+- FEEDBACK-4 数据升级：当时源码 schema 为 v3；v1、v2 按级迁移到 v3，磁盘旧库迁移前通过 `VACUUM INTO` 生成并验证一致性备份
+- 本轮验证：前端 58 项、Rust 41 项全部通过；独立账本冒烟与桌面联合冒烟均为 `passed=true`，联合冒烟验证 `updatedPendingTaskTitle=true`、`integrity=true`、`eventCountAfterDelete=8`
+- 构建状态：包含 FEEDBACK-4 的 release 已构建并通过发布门禁；本机构建大小、进程和哈希不纳入公开记录
+- 迁移验证：v2 → v3 磁盘迁移已通过合成样本与只读完整性核对；迁移前一致性备份可回读，迁移后 `quick_check` 与领域校验通过
+- FEEDBACK-5 产品口径：`deadlineOn` 为可空 `YYYY-MM-DD` 日历日，默认无期限；无期限常态不显示，双击标题或按 `Enter` / `F2` 进入原位编辑后才显示日期控件。任务行期限标签可点击编辑；胶囊独立 `edit-current-deadline` 按钮一次完成展开并聚焦当前任务日期输入，编辑期间隐藏旧标签，成功选择或清除后焦点回到标题
+- FEEDBACK-5 展示口径：期限标签使用今天、明天、`M/D`、跨年 `YYYY/M/D` 或“逾期 N 天”；逾期与午夜刷新只由前端派生，不写领域事件
+- FEEDBACK-5 边界：期限独立于 `deferUntil`，不自动排序、隐藏、提醒、通知、同步日历或产生奖惩；完成、撤销完成和删除保留字段
+- FEEDBACK-5 账本：`update_task_deadline({ operationId, taskId, deadlineOn })` 只接受当前可见的立即待办；`null` 清除，同值拒绝；追加 `deadline_updated`，metadata 保存 `beforeDeadlineOn` / `afterDeadlineOn`
+- FEEDBACK-5 数据升级：当前源码 schema 为 v4；v1、v2、v3 按级迁移到 v4，磁盘旧库迁移前生成并验证 before-v4 一致性备份
+- FEEDBACK-5 验证：前端 79/79、Rust 48/48；独立账本冒烟与桌面联合冒烟均为 `passed=true`，联合冒烟验证 `updatedPendingTaskDeadline=true`、`eventCountAfterDelete=9`
+- FEEDBACK-5 迁移验证：v1、v2、v3 → v4 的合成磁盘样本迁移与迁移前一致性备份均通过；正式数据只读完整性核对通过，`quick_check`、外键、迁移版本和 `deadline_updated` 约束均正常
+- FEEDBACK-5 发布：版本 `0.1.0` 的构建与发布门禁通过；本机进程、构建大小和历史哈希不作为公开源码契约
+- FEEDBACK-5 发布门禁：前端 79/79、Rust 48/48、`cargo fmt`、`cargo clippy --all-targets -- -D warnings`、release Rust 48/48、独立账本冒烟和桌面联合冒烟均通过；桌面冒烟包含 `updatedPendingTaskDeadline=true`
+- FEEDBACK-6 胶囊任务布局：有待办时完成圆圈位于标题最前；没有待办时显示“暂无待办”并完全隐藏圆圈；当前任务重新出现时圆圈随真实快照恢复
+- FEEDBACK-6 直接隐藏修正：初版“×”容易被理解为删除任务或退出，当轮先改为胶囊右上角独立的窗口级“—”；该图形随后由 FEEDBACK-7 的向下箭头替代，动作始终复用 `hideToTray()`
+- FEEDBACK-6 验证：前端 79/79、Rust 48/48，桌面联合冒烟 `passed=true` 且 `hideToTray=true`；只读终审无阻断
+- FEEDBACK-6 发布：版本 `0.1.0` 的构建与发布门禁通过；本机构建历史不纳入公开记录
+- FEEDBACK-6 数据核对：schema v4 保持不变；合成 smoke 与正式数据只读完整性核对通过，`quick_check` 和外键检查正常
+- FEEDBACK-7 胶囊单行布局：完成圆圈保持在最前；标题允许省略；已有期限固定在同一行末尾，保持 8px 视觉字号但提供至少 24px 点击高度；任务变空后圆圈与期限都必须隐藏
+- FEEDBACK-7 窗口动作：右上角由“—”改为 CSS 绘制的向下箭头，继续使用 `data-action=hide` 和“隐藏到托盘”的无障碍名称，不改变托盘恢复链路
+- FEEDBACK-7 验证：定向 DOM 契约 3/3、前端 79/79、Rust 48/48；桌面联合冒烟 `passed=true`、`hideToTray=true`、`trayRestoreToExpanded=true`；独立只读布局审查无阻断
+- FEEDBACK-7 发布：版本 `0.1.0` 的构建与发布门禁通过；本机构建历史不纳入公开记录
+- FEEDBACK-7 数据核对：schema v4 保持不变；合成 smoke 与正式数据只读完整性核对通过，`quick_check` 和外键检查正常
+- FEEDBACK-8 完成记录布局：标题占据弹性空间并在过长时省略；完成时间固定在内容区末端且不换行；最右侧撤销由文字改为 28 × 28px `↶` 图标
+- FEEDBACK-8 撤销语义：继续提交原 `undo-completion` 与完成事件 ID；图标按钮保留“撤销完成”提示和包含任务标题的无障碍名称，不改账本命令链路
+- FEEDBACK-8 验证：定向 DOM 契约 3/3、前端 79/79、Rust 48/48；桌面联合冒烟 `passed=true` 且 `ledgerRoundTrip=true`；独立只读审查无阻断，并补齐事件 ID 与 DOM 顺序回归约束
+- FEEDBACK-8 发布：版本 `0.1.0` 的构建与发布门禁通过；本机构建历史不纳入公开记录
+- FEEDBACK-8 数据核对：schema v4 保持不变；合成 smoke 与正式数据只读完整性核对通过，`quick_check` 和外键检查正常
+- FEEDBACK-9 根因：待办页与完成记录页共用 `.panel-body { overflow-y:auto }`，因此滚动条贴在展开窗口最右侧圆角边缘，并让整块内容表现为窗口滚动
+- FEEDBACK-9 修复：`.panel-body` 与 `.panel-view` 改为隐藏溢出；`.task-list` / `.history-list` 分别以 `min-height:0`、`flex:1`、`overflow-y:auto` 承担内部滚动，录入区、完成记录标题和底部入口固定
+- FEEDBACK-9 滚动条：列表保留稳定滚动槽，WebView2 使用 7px 透明轨道与细圆角滑块；面板 16px 内边距使其离开窗口圆角，删除、拖动柄和撤销图标不被遮挡
+- FEEDBACK-9 验证：定向 DOM 契约 3/3、前端 79/79、Rust 48/48；桌面联合冒烟 `passed=true`；独立只读审查无阻断；125% 缩放真实 Tauri 窗口的待办长列表与完成记录长列表均目测通过
+- FEEDBACK-9 发布：版本 `0.1.0` 的构建与发布门禁通过；本机进程与构建哈希不纳入公开记录
+- FEEDBACK-9 数据核对：schema v4 的正式数据只读完整性核对通过，`quick_check` 和外键检查正常；公开记录不保留真实任务统计或用户操作时间线
+- FEEDBACK-10 命名边界：主界面、窗口标题、托盘菜单与提示、原型预览和当前文档统一使用“代办”；历史命名背景只在旧设计说明中明确保留
+- FEEDBACK-10 兼容边界：`com.luoji.zuoban.spike`、`zuoban-ledger.sqlite3`、操作箱 key、内部托盘 ID、EXE / 包名和 `ZUOBAN_*` 冒烟协议保持不变，避免切换数据目录或破坏恢复协议
+- FEEDBACK-10 契约：新增产品名称测试，分别约束用户可见名称与内部兼容身份；定向测试 2/2 通过
+- FEEDBACK-10 验证：前端 81/81、Rust debug 与 release 均为 48/48；`cargo fmt --check`、Clippy 和桌面联合冒烟通过，冒烟 `passed=true`、托盘恢复与账本往返均正常
+- FEEDBACK-10 发布：版本 `0.1.0` 的构建与发布门禁通过，Windows `FileDescription` / `ProductName` 均为“代办”；本机构建历史不纳入公开记录
+- FEEDBACK-10 实机与数据核对：125% 缩放窗口的用户可见名称验证通过；schema v4 的正式数据只读完整性核对通过，`quick_check` 和外键检查正常
+- FEEDBACK-11 根因与源文件：白色圆角块来自 `src-tauri/icons/source.svg` 的 `#f7f8f9` 背景矩形；移除该矩形并将角色围绕画布中心放大 14%，保留原造型、颜色和描边
+- FEEDBACK-11 生成与契约：使用 `npx.cmd tauri icon src-tauri\icons\source.svg` 重新生成整套 PNG / ICO；新增图标资产契约，约束 SVG 无底板且托盘继续复用 `default_window_icon`
+- FEEDBACK-11 透明度与小尺寸：ICO 包含 16/24/32/48/64/256 六帧；16/24/32 帧四角 alpha 均为 0，16px 图形占 12 × 12px、24px 图形占 18 × 18px，不裁切耳朵和描边
+- FEEDBACK-11 验证与发布：定向契约 2/2、前端 83/83、Rust 48/48、桌面联合冒烟 `passed=true`，版本 `0.1.0` 的发布构建通过；本机构建标识不纳入公开记录
+- FEEDBACK-11 实机与数据核对：125% 缩放深色 Windows 任务栏人工确认托盘角色无白底；schema v4 的正式数据只读完整性核对通过，`quick_check` 和外键检查正常
+- FEEDBACK-12 交互：待办页与完成记录页支持 `Ctrl+F` 或更多菜单进入当前页搜索；共享搜索栏临时替换快速记录/完成记录标题，`Esc` 或“取消”退出，中文输入法组合期间不发布半成品查询
+- FEEDBACK-12 投影边界：只按当前页标题做不区分英文大小写的包含过滤并安全高亮；完成记录先排除已撤销事件；总完成数、真实 `currentTask.id`、完整队列与账本事实不受过滤影响
+- FEEDBACK-12 操作与焦点：搜索态仍可完成、修改、删除和撤销；排序柄隐藏，拖动、键盘移动、放下与最终提交均有 `canReorder()` 守卫；结果消失时焦点回搜索框，取消搜索后失效焦点记录会清理；标题编辑的组合态 `Esc` 不再误取消编辑
+- FEEDBACK-12 验证：前端 102/102、Rust 48/48，`cargo fmt --check`、Clippy、release Rust 48/48 与桌面联合冒烟均通过；冒烟 `passed=true`、`scaleFactor=1.25`、`frontendReady=true`、`ledgerRoundTrip=true`
+- FEEDBACK-12 实机：125% 正式窗口验证待办命中高亮、无结果、完成记录搜索、动态菜单文案和 `Esc` 分层退出；搜索态排序柄消失，过滤后的第一项未冒充真实当前任务；验收后恢复胶囊
+- FEEDBACK-12 发布：版本 `0.1.0` 的发布构建与完整门禁通过；本机进程、构建大小和历史哈希不纳入公开记录
+- FEEDBACK-12 数据核对：schema v4 的正式数据只读完整性核对通过，`quick_check` 和外键检查正常；实机搜索验收不提交写命令，公开记录不保留真实数据统计

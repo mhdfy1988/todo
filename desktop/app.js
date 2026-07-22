@@ -1,0 +1,326 @@
+import { LedgerSession } from "./app/ledger-session.js";
+import { LedgerCommand } from "./app/ledger-contract.js";
+import { diagnosticsPassed } from "./app/selectors.js";
+import { createInitialState, LedgerPhase } from "./app/state.js";
+import { createOutboxStore } from "./app/infrastructure/outbox-store.js";
+import { TauriGateway } from "./app/infrastructure/tauri-gateway.js";
+import { mountPetComponents } from "./app/pet-component.js";
+import { LedgerView, ToastView } from "./app/views.js";
+import { ShellController } from "./app/shell-controller.js";
+import { TaskListController } from "./app/task-list-controller.js";
+import { isSearchShortcut, ListSearchController } from "./app/list-search-controller.js";
+import { WindowController } from "./app/window-controller.js";
+import { millisecondsUntilNextLocalDay } from "./app/deadline-date.js";
+
+const root = document.body;
+const statusText = document.querySelector("#statusText");
+const captureForm = document.querySelector("#captureForm");
+const taskTitleInput = document.querySelector("#taskTitle");
+const taskList = document.querySelector("#taskList");
+const taskOrderStatus = document.querySelector("#taskOrderStatus");
+const moreMenu = document.querySelector("#moreMenu");
+const toast = new ToastView(document.querySelector("#toast"), window);
+const ledgerView = new LedgerView(document);
+let taskListController = null;
+const searchController = new ListSearchController({
+  root,
+  form: document.querySelector("#listSearchForm"),
+  label: document.querySelector("#listSearchLabel"),
+  input: document.querySelector("#listSearchInput"),
+  cancelButton: document.querySelector("#listSearchCancel"),
+  searchAction: document.querySelector("#searchAction"),
+  captureForm,
+  taskTitleInput,
+  historyHeading: document.querySelector("#historyHeading"),
+  historyBackButton: document.querySelector("#historyBackButton"),
+  menuButton: document.querySelector("#moreMenuButton"),
+  onChange: (searchState) => {
+    ledgerView.setSearch(searchState);
+    taskListController?.restorePendingFocus();
+  },
+});
+const shellController = new ShellController({ root, menu: moreMenu, search: searchController });
+const gateway = TauriGateway.fromWindow(window);
+
+mountPetComponents(document);
+
+if (!gateway) {
+  showStaticPreview();
+} else {
+  startDesktopApplication(gateway);
+}
+
+function showStaticPreview() {
+  const windowController = new WindowController({
+    gateway: null,
+    root,
+    statusText,
+  });
+  const previewError = new Error("浏览器预览未连接本地账本");
+  ledgerView.render({
+    ...createInitialState(),
+    phase: LedgerPhase.ERROR,
+    error: previewError,
+  });
+  windowController.showStaticPreview();
+  toast.show(errorMessage(previewError));
+}
+
+/** @param {TauriGateway} activeGateway */
+function startDesktopApplication(activeGateway) {
+  const session = new LedgerSession({
+    gateway: activeGateway,
+    outboxStoreFactory: (profile) => profile === "normal"
+      ? createOutboxStore(profile, window.localStorage)
+      : createOutboxStore(profile),
+  });
+  const windowController = new WindowController({
+    gateway: activeGateway,
+    root,
+    statusText,
+  });
+  taskListController = new TaskListController({
+    list: taskList,
+    status: taskOrderStatus,
+    onReorder: (movedTaskId, expectedTaskIds, orderedTaskIds) => session.reorderTasks(
+      movedTaskId,
+      expectedTaskIds,
+      orderedTaskIds,
+    ),
+    onUpdateDeadline: (taskId, deadlineOn) => session.updateTaskDeadline(taskId, deadlineOn),
+    onUpdateTitle: (taskId, title) => session.updateTaskTitle(taskId, title),
+    onError: (error) => handleMutationFailure(session, error),
+    canReorder: () => !searchController.isActive("tasks"),
+    isSearchActive: () => searchController.isActive("tasks"),
+    focusSearchFallback: () => searchController.focus({ select: false }),
+  });
+  scheduleDeadlinePresentationRefresh(ledgerView);
+
+  session.subscribe((state) => {
+    ledgerView.render(state);
+    taskListController.restorePendingFocus();
+  });
+
+  captureForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const title = taskTitleInput.value.trim();
+    if (!title || !session.canMutate()) return;
+    try {
+      const operation = await session.captureTask(title);
+      clearCapturedTitle(operation);
+      if (operation) toast.show("已记下");
+    } catch (error) {
+      handleMutationFailure(session, error);
+    }
+  });
+
+  document.addEventListener("click", async (event) => {
+    if (!event.target.closest("#moreMenu")) shellController.closeMenu();
+    const button = event.target.closest("[data-action]");
+    if (!button || button.disabled) return;
+    const action = button.dataset.action;
+    const ledgerAction = action === "complete-task"
+      || action === "delete-task"
+      || action === "undo-completion";
+    if (!ledgerAction) button.disabled = true;
+    try {
+      await handleAction({
+        action,
+        button,
+        session,
+        shellController,
+        searchController,
+        taskListController,
+        windowController,
+      });
+    } catch (error) {
+      if (ledgerAction) {
+        handleMutationFailure(session, error);
+      } else {
+        console.error(error);
+        toast.show(errorMessage(error));
+      }
+    } finally {
+      if (!ledgerAction && button.isConnected) button.disabled = false;
+    }
+  });
+
+  window.addEventListener("keydown", async (event) => {
+    if (event.isComposing || event.keyCode === 229 || searchController.isComposing()) return;
+    if (isSearchShortcut(event)) {
+      event.preventDefault();
+      try {
+        if (windowController.mode !== "expanded") {
+          await windowController.setMode("expanded");
+          shellController.showTasks();
+        }
+        shellController.closeMenu();
+        searchController.open(root.dataset.panel === "history" ? "history" : "tasks");
+      } catch (error) {
+        console.error(error);
+        toast.show(errorMessage(error));
+      }
+      return;
+    }
+    if (event.key !== "Escape" || windowController.mode !== "expanded") return;
+    event.preventDefault();
+    if (shellController.closeTransientUi()) return;
+    try {
+      await windowController.setMode("capsule");
+    } catch (error) {
+      console.error(error);
+    }
+  });
+
+  start(session, windowController);
+}
+
+/** 期限只是展示派生值；午夜刷新 DOM，不写账本也不重绘任务列表。 */
+function scheduleDeadlinePresentationRefresh(view) {
+  let timer = 0;
+  const schedule = () => {
+    timer = window.setTimeout(() => {
+      view.refreshDeadlineLabels();
+      schedule();
+    }, millisecondsUntilNextLocalDay() + 250);
+  };
+  schedule();
+  window.addEventListener("beforeunload", () => window.clearTimeout(timer), { once: true });
+}
+
+async function start(session, windowController) {
+  try {
+    await windowController.subscribeToStatusChanges();
+    const result = await session.start();
+    if (!result) return;
+    windowController.applyStatus(result.status);
+    clearCapturedTitle(result.operation);
+    if (result.recoveryError) {
+      toast.show(errorMessage(result.recoveryError));
+    } else if (result.recovered) {
+      toast.show("上次未确认的操作已恢复");
+    }
+  } catch (error) {
+    console.error(error);
+    toast.show(errorMessage(error));
+  }
+}
+
+async function runDiagnostics(session, windowController) {
+  const result = await session.runDiagnostics();
+  if (!result) return;
+  windowController.applyStatus(result.status);
+  clearCapturedTitle(result.operation);
+  if (result.recoveryError) {
+    toast.show(errorMessage(result.recoveryError));
+    return;
+  }
+  toast.show(
+    diagnosticsPassed(result.status, result.integrity)
+      ? "窗口与本地账本检查通过"
+      : "检查发现异常",
+  );
+}
+
+async function handleAction({
+  action,
+  button,
+  session,
+  shellController,
+  searchController,
+  taskListController,
+  windowController,
+}) {
+  switch (action) {
+    case "expanded":
+      await windowController.setMode(action);
+      shellController.showTasks();
+      taskTitleInput.focus();
+      return;
+    case "edit-current-deadline":
+      await windowController.setMode("expanded");
+      shellController.showTasks();
+      if (!taskListController.beginDeadlineEdit(button.dataset.taskId)) {
+        taskTitleInput.focus();
+      }
+      return;
+    case "capsule":
+    case "pet":
+    case "edge":
+      await windowController.setMode(action);
+      shellController.showTasks();
+      return;
+    case "show-history":
+      shellController.showHistory();
+      return;
+    case "show-tasks":
+      shellController.showTasks();
+      return;
+    case "search":
+      shellController.closeMenu();
+      searchController.open(root.dataset.panel === "history" ? "history" : "tasks");
+      return;
+    case "hide":
+      shellController.showTasks();
+      await windowController.hideToTray();
+      return;
+    case "diagnostics":
+      shellController.closeMenu();
+      await runDiagnostics(session, windowController);
+      return;
+    case "complete-task": {
+      const taskId = button.dataset.taskId;
+      if (!taskId) return;
+      taskListController.rememberCompletionFocus(taskId);
+      const operation = await session.completeTask(taskId);
+      if (operation) toast.show("已完成");
+      return;
+    }
+    case "delete-task": {
+      const taskId = button.dataset.taskId;
+      if (!taskId) return;
+      taskListController.rememberRemovalFocus(taskId);
+      const operation = await session.deleteTask(taskId);
+      if (operation) toast.show("已从待办删除");
+      return;
+    }
+    case "undo-completion": {
+      const operation = await session.undoCompletion(button.dataset.eventId);
+      if (operation) toast.show("已撤销，任务回到队尾");
+      searchController.focus({ select: false });
+      return;
+    }
+    default:
+      throw new Error(`未知操作：${action}`);
+  }
+}
+
+function clearCapturedTitle(operation) {
+  if (
+    operation?.command === LedgerCommand.CAPTURE
+      && taskTitleInput.value.trim() === operation.payload.title
+  ) {
+    taskTitleInput.value = "";
+  }
+}
+
+function handleMutationFailure(session, error) {
+  console.error(error);
+  const pendingOperation = session.state.pendingOperation;
+  if (pendingOperation?.committed) {
+    toast.show("操作已经保存，但列表刷新失败；点击“检查”继续恢复");
+  } else if (pendingOperation) {
+    toast.show("操作结果尚未确认；点击“检查”继续恢复");
+  } else {
+    toast.show(errorMessage(error));
+  }
+}
+
+function errorMessage(error) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error && typeof error.message === "string") {
+    return error.code ? `${error.message}（${error.code}）` : error.message;
+  }
+  return "操作失败";
+}
