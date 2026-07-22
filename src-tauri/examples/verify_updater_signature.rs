@@ -97,16 +97,28 @@ fn verify_metadata(
             .get("url")
             .and_then(Value::as_str)
             .ok_or_else(|| invalid_data(&format!("{platform} 缺少下载地址")))?;
-        if !url.contains("github.com/mhdfy1988/todo/releases/download/")
-            || !url.ends_with(".exe")
-            || (!url.contains(artifact_name) && !url.contains("%E4%BB%A3%E5%8A%9E"))
-        {
+        if !is_expected_download_url(url, artifact_name) {
             return Err(invalid_data(&format!(
                 "{platform} 下载地址不指向当前安装器"
             )));
         }
     }
     Ok(())
+}
+
+fn is_expected_download_url(url: &str, artifact_name: &str) -> bool {
+    const API_PREFIX: &str = "https://api.github.com/repos/mhdfy1988/todo/releases/assets/";
+    if let Some(asset_id) = url.strip_prefix(API_PREFIX) {
+        return !asset_id.is_empty()
+            && asset_id.chars().all(|character| character.is_ascii_digit());
+    }
+
+    const RELEASE_PREFIX: &str = "https://github.com/mhdfy1988/todo/releases/download/";
+    let ascii_suffix = artifact_name
+        .find('_')
+        .map(|index| &artifact_name[index..])
+        .unwrap_or(artifact_name);
+    url.starts_with(RELEASE_PREFIX) && url.ends_with(ascii_suffix)
 }
 
 fn invalid_input(message: &str) -> Box<dyn Error> {
@@ -123,7 +135,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn metadata_must_reference_the_verified_windows_installer() {
+    fn metadata_accepts_the_official_github_asset_api_url() {
         let directory =
             env::temp_dir().join(format!("todo-updater-metadata-test-{}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
@@ -132,7 +144,7 @@ mod tests {
         let signature = "encoded-signature";
         let entry = json!({
             "signature": signature,
-            "url": "https://github.com/mhdfy1988/todo/releases/download/v0.1.0/%E4%BB%A3%E5%8A%9E_0.1.0_x64-setup.exe"
+            "url": "https://api.github.com/repos/mhdfy1988/todo/releases/assets/485644281"
         });
         fs::write(
             &metadata_path,
@@ -156,5 +168,13 @@ mod tests {
         .unwrap();
 
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn metadata_rejects_an_asset_url_outside_the_repository() {
+        assert!(!is_expected_download_url(
+            "https://api.github.com/repos/other/todo/releases/assets/485644281",
+            "代办_0.1.0_x64-setup.exe"
+        ));
     }
 }

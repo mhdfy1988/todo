@@ -56,6 +56,8 @@ test("发布工作流先过门禁，再上传安装器、签名和 latest.json",
   assert.match(workflow, /args: --bundles nsis/);
   assert.match(workflow, /releaseDraft: true/);
   assert.match(workflow, /--example verify_updater_signature/);
+  assert.match(workflow, /Invoke-WebRequest -Uri \$downloadUrl/);
+  assert.match(workflow, /Get-FileHash -LiteralPath \$downloadedInstaller/);
   assert.match(workflow, /gh release edit .*--draft=false --latest/);
 });
 

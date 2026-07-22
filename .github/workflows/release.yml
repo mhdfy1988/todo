@@ -79,6 +79,8 @@ jobs:
 
       - name: 验证更新签名与 latest.json
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $installers = @(Get-ChildItem -LiteralPath 'src-tauri\target\release\bundle\nsis' -Filter '*-setup.exe')
           if ($installers.Count -ne 1) { throw "期望恰好一个 NSIS 安装器，实际为 $($installers.Count)" }
@@ -88,10 +90,25 @@ jobs:
           cargo run --locked --manifest-path src-tauri/Cargo.toml --example verify_updater_signature -- $installers[0].FullName $signature latest.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+          $metadata = Get-Content -LiteralPath 'latest.json' -Raw | ConvertFrom-Json
+          $downloadUrl = $metadata.platforms.'windows-x86_64'.url
+          $downloadDirectory = Join-Path $env:RUNNER_TEMP 'updater-metadata-download'
+          New-Item -ItemType Directory -Path $downloadDirectory -Force | Out-Null
+          $downloadedInstaller = Join-Path $downloadDirectory $installers[0].Name
+          $headers = @{
+            Accept = 'application/octet-stream'
+            Authorization = "Bearer $env:GH_TOKEN"
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $downloadedInstaller
+          if ((Get-FileHash -LiteralPath $downloadedInstaller -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $installers[0].FullName -Algorithm SHA256).Hash) {
+            throw 'latest.json 指向的安装器与本次构建产物不一致'
+          }
+
       - name: 发布已验证的 Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $package = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
-          gh release edit "v$($package.version)" --draft=false --latest --repo "${{ github.repository }}"
+          gh release edit "v$($package.version)" --target "${{ github.sha }}" --draft=false --latest --repo "${{ github.repository }}"
