@@ -12,6 +12,8 @@ import { isSearchShortcut, ListSearchController } from "./app/list-search-contro
 import { WindowController } from "./app/window-controller.js";
 import { millisecondsUntilNextLocalDay } from "./app/deadline-date.js";
 import { UpdateController } from "./app/update-controller.js";
+import { WeeklyCompletionController } from "./app/weekly-completion-controller.js";
+import { TauriClipboardWriter } from "./app/infrastructure/clipboard-writer.js";
 
 const root = document.body;
 const statusText = document.querySelector("#statusText");
@@ -87,6 +89,11 @@ function startDesktopApplication(activeGateway) {
     toast,
     timerHost: window,
   });
+  const weeklyCompletionController = new WeeklyCompletionController({
+    gateway: activeGateway,
+    clipboard: TauriClipboardWriter.fromWindow(window),
+    toast,
+  });
   window.addEventListener("beforeunload", () => updateController.stop(), { once: true });
   taskListController = new TaskListController({
     list: taskList,
@@ -131,6 +138,7 @@ function startDesktopApplication(activeGateway) {
     const ledgerAction = action === "complete-task"
       || action === "delete-task"
       || action === "undo-completion";
+    const ledgerBoundReadAction = action === "copy-weekly-completions";
     if (!ledgerAction) button.disabled = true;
     try {
       await handleAction({
@@ -141,6 +149,7 @@ function startDesktopApplication(activeGateway) {
         searchController,
         taskListController,
         updateController,
+        weeklyCompletionController,
         windowController,
       });
     } catch (error) {
@@ -151,7 +160,9 @@ function startDesktopApplication(activeGateway) {
         toast.show(errorMessage(error));
       }
     } finally {
-      if (!ledgerAction && button.isConnected) button.disabled = false;
+      if (!ledgerAction && button.isConnected) {
+        button.disabled = ledgerBoundReadAction ? !session.canMutate() : false;
+      }
     }
   });
 
@@ -241,6 +252,7 @@ async function handleAction({
   searchController,
   taskListController,
   updateController,
+  weeklyCompletionController,
   windowController,
 }) {
   switch (action) {
@@ -282,6 +294,9 @@ async function handleAction({
       return;
     case "update":
       await updateController.handleAction();
+      return;
+    case "copy-weekly-completions":
+      await weeklyCompletionController.copyCurrentWeek();
       return;
     case "complete-task": {
       const taskId = button.dataset.taskId;

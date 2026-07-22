@@ -36,6 +36,7 @@ test("更新源、公钥和 Rust 插件进入首个安装版", () => {
   assert.match(updater.pubkey, /^[A-Za-z0-9+/=\r\n]+$/);
   assert.ok(updater.pubkey.length > 100);
   assert.equal(updater.windows.installMode, "passive");
+  assert.match(cargoToml, /^tauri-plugin-clipboard-manager = "2\.3\.2"$/m);
   assert.match(cargoToml, /^tauri-plugin-updater = "2\.10\.1"$/m);
 });
 
@@ -64,6 +65,11 @@ test("发布工作流先过门禁，再上传安装器、签名和 latest.json",
   assert.match(workflow, /gh release edit .*--draft=false --latest/);
 });
 
-test("前端只调用项目命令，不直接扩大 updater 插件权限", () => {
-  assert.deepEqual(capability.permissions, ["core:default"]);
+test("前端只开放核心能力和剪贴板写文本权限", () => {
+  assert.deepEqual(capability.permissions, [
+    "core:default",
+    "clipboard-manager:allow-write-text",
+  ]);
+  assert.equal(capability.permissions.some((permission) => permission.includes("read")), false);
+  assert.equal(capability.permissions.some((permission) => permission.includes("clear")), false);
 });

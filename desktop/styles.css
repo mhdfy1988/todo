@@ -278,6 +278,9 @@ body[data-search-panel="tasks"] .task-row {
 .panel-heading button { width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--soft); font-size: 16px; }
 .panel-heading button:hover { background: var(--wash); }
 .panel-heading strong { font-size: 13px; }
+.panel-heading .heading-text-action { width: auto; margin-left: auto; padding: 0 8px; color: var(--faint); font-size: 10px; }
+.panel-heading .heading-text-action:hover,
+.panel-heading .heading-text-action:focus-visible { color: var(--soft); }
 .history-list { min-height: 0; flex: 1; margin: 8px 0 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; list-style: none; }
 .task-list,
 .history-list { scrollbar-width: thin; scrollbar-color: rgba(118, 124, 132, 0.58) transparent; }

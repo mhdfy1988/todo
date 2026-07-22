@@ -30,6 +30,7 @@ export class LedgerView {
     this.taskOrderStatus = required(document, "#taskOrderStatus");
     this.historyLink = required(document, "#historyLink");
     this.historyCount = required(document, "#historyCount");
+    this.copyWeeklyCompletionsButton = required(document, "#copyWeeklyCompletionsButton");
     this.historyList = required(document, "#historyList");
     this.listSearchStatus = required(document, "#listSearchStatus");
     this.searchState = Object.freeze({ panel: null, query: "" });
@@ -315,6 +316,7 @@ export class LedgerView {
     const reorderUnavailable = unavailable || this.searchState.panel === "tasks";
     this.taskTitleInput.disabled = unavailable;
     this.captureButton.disabled = unavailable;
+    this.copyWeeklyCompletionsButton.disabled = unavailable;
     this.capsuleTaskCheckbox.checked = false;
     this.capsuleTaskCheckbox.disabled = unavailable || !state.snapshot.currentTask;
     this.capsuleTaskDeadline.disabled = unavailable || this.capsuleTaskDeadline.hidden;

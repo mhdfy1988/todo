@@ -9,6 +9,7 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
   const views = await readFile(new URL("../app/views.js", import.meta.url), "utf8");
+  const app = await readFile(new URL("../app.js", import.meta.url), "utf8");
   const taskListController = await readFile(
     new URL("../app/task-list-controller.js", import.meta.url),
     "utf8",
@@ -34,6 +35,7 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
     "historyCount",
     "historyHeading",
     "historyBackButton",
+    "copyWeeklyCompletionsButton",
     "historyList",
     "capsuleTitleButton",
     "capsuleTaskTitle",
@@ -45,6 +47,7 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
   const actions = [
     "capsule",
     "complete-task",
+    "copy-weekly-completions",
     "diagnostics",
     "edit-current-deadline",
     "expanded",
@@ -75,7 +78,17 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
   assert.doesNotMatch(views, /undo\.textContent = "撤销"/);
   assert.match(styles, /\.history-copy b\s*\{[^}]*flex:\s*1;[^}]*text-overflow:\s*ellipsis;/s);
   assert.match(styles, /\.history-copy time\s*\{[^}]*margin-left:\s*auto;[^}]*white-space:\s*nowrap;/s);
+  assert.match(styles, /\.panel-heading \.heading-text-action\s*\{[^}]*width:\s*auto;[^}]*margin-left:\s*auto;[^}]*font-size:\s*10px;/s);
   assert.match(styles, /\.history-list button\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px;[^}]*border:\s*0;/s);
+  assert.match(
+    app,
+    /case "copy-weekly-completions":\s*await weeklyCompletionController\.copyCurrentWeek\(\);\s*return;/s,
+  );
+  assert.match(app, /const ledgerBoundReadAction = action === "copy-weekly-completions";/);
+  assert.match(
+    app,
+    /button\.disabled = ledgerBoundReadAction \? !session\.canMutate\(\) : false;/,
+  );
   assert.match(styles, /\.panel-body\s*\{[^}]*overflow:\s*hidden;/s);
   assert.doesNotMatch(styles, /\.panel-body\s*\{[^}]*overflow-y:\s*auto;/s);
   assert.match(styles, /\.task-list\s*\{[^}]*min-height:\s*0;[^}]*flex:\s*1;[^}]*overflow-y:\s*auto;[^}]*scrollbar-gutter:\s*stable;/s);
@@ -196,6 +209,8 @@ test("列表搜索保持独立输入、纯过滤与可访问快捷键契约", as
   assert.doesNotMatch(views, /if \(index === 0\) item\.setAttribute\("aria-current", "step"\)/);
   assert.match(views, /handle\.hidden = searching;\s*handle\.disabled = searching;\s*handle\.draggable = !searching;/s);
   assert.match(views, /const reorderUnavailable = unavailable \|\| this\.searchState\.panel === "tasks"/);
+  assert.match(views, /this\.copyWeeklyCompletionsButton = required\(document, "#copyWeeklyCompletionsButton"\);/);
+  assert.match(views, /this\.copyWeeklyCompletionsButton\.disabled = unavailable;/);
   assert.match(views, /handle\.disabled = reorderUnavailable;\s*handle\.draggable = !reorderUnavailable;/s);
 
   assert.match(
