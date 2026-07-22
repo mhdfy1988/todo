@@ -49,6 +49,23 @@ jobs:
       - name: 核对发布版本
         run: npm.cmd run release:version:check
 
+      - name: 拒绝覆盖已发布版本
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $package = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
+          $tag = "v$($package.version)"
+          $headers = @{
+            Accept = 'application/vnd.github+json'
+            Authorization = "Bearer $env:GH_TOKEN"
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $uri = "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag"
+          $response = Invoke-WebRequest -Uri $uri -Headers $headers -SkipHttpErrorCheck
+          if ($response.StatusCode -eq 200) { throw "版本 $tag 已公开发布；请先提升三个版本号，禁止覆盖既有安装器和更新元数据" }
+          if ($response.StatusCode -ne 404) { throw "检查已发布版本失败：HTTP $($response.StatusCode)" }
+
       - name: 运行统一测试门禁
         run: npm.cmd run desktop:check
 

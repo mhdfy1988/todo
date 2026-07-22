@@ -24,6 +24,7 @@
 12. 应用更新只能由前端 `UpdateController` 经 `TauriGateway` 调用项目自有 Rust 命令，再由 `app_update` 适配 Tauri updater；自动检查只能在 normal 账本进入 `READY` 后运行，smoke 必须在前后端两层禁网，安装必须由用户确认且不得与未完成账本写入并发。
 13. `plugins.updater.pubkey` 是已安装客户端的更新信任身份；发布后不得随意替换。更新私钥和密码只允许进入本机安全备份与 GitHub Actions Secrets，禁止提交仓库；私钥丢失时不得以无签名或新密钥静默绕过既有客户端校验。
 14. GitHub Release 必须先以草稿接收安装器、`.sig` 与 `latest.json`，再用客户端内嵌公钥验证实际签名并核对元数据；只有验证通过才能自动转为正式 Release，禁止未经闭环校验直接公开更新产物。
+15. 已公开的版本、安装器、更新签名与 `latest.json` 视为不可变发布产物；工作流必须拒绝覆盖同版本正式 Release。失败后的未公开草稿可以同版本重试，正式发布后的修复必须同步提升 `package.json`、Tauri 与 Cargo 三处版本号并创建新 Release。
 
 ## 模块化约束
 

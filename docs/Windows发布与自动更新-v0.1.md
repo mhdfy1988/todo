@@ -93,10 +93,11 @@ UpdateController
 
 1. 安装锁定的 Node 依赖与 Rust stable 工具链。
 2. 校验 `package.json`、`src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml` 版本一致；标签触发时还要求标签等于 `v<版本号>`。
-3. 运行统一门禁、Rust 格式检查和 Clippy。
-4. 通过 `tauri-apps/tauri-action@v1` 构建 Windows x64 NSIS，并把安装器、`.sig` 与 `latest.json` 上传到草稿 Release。
-5. 使用客户端内嵌公钥对实际安装器和 `.sig` 做密码学验签，同时核对 `latest.json` 的版本、平台、签名和下载地址；再按元数据地址重新下载安装器并与本次构建产物比较 SHA-256。
-6. 只有验证通过，才把草稿自动转为正式 GitHub Release；失败时保留草稿，不进入 `releases/latest`。
+3. 查询同版本公开 Release；若已经发布则失败快，禁止覆盖既有安装器、签名和 `latest.json`。失败后的草稿允许使用同版本重试。
+4. 运行统一门禁、Rust 格式检查和 Clippy。
+5. 通过 `tauri-apps/tauri-action@v1` 构建 Windows x64 NSIS，并把安装器、`.sig` 与 `latest.json` 上传到草稿 Release。
+6. 使用客户端内嵌公钥对实际安装器和 `.sig` 做密码学验签，同时核对 `latest.json` 的版本、平台、签名和下载地址；再按元数据地址重新下载安装器并与本次构建产物比较 SHA-256。
+7. 只有验证通过，才把草稿自动转为正式 GitHub Release；失败时保留草稿，不进入 `releases/latest`。
 
 `v0.1.0` 已通过上述流程发布：[GitHub Actions 运行记录](https://github.com/mhdfy1988/todo/actions/runs/29899650153)。发布后又通过公开 Latest 地址独立下载并复验了元数据、安装器、签名与 GitHub 资产摘要。该结果证明首发产物链路可用，但不等于已经完成后续版本的应用内升级。
 
@@ -110,6 +111,8 @@ GitHub Actions 只约定以下 Secrets 名称：
 私钥、密码和它们的真实内容绝不能写入仓库、文档、日志或聊天记录。建议在访问受控、加密的离线介质中保留恢复副本，并由项目维护者记录恢复与轮换责任；备份可用性应在不暴露密钥内容的前提下定期确认。
 
 应用配置中只保存用于验证更新签名的公钥。私钥丢失后无法继续沿用同一信任链签发更新；若直接改用新密钥，既有安装版本默认不会信任新签名，因此首发前必须确认备份可恢复。
+
+已公开的版本和更新元数据视为不可变产物。发布后发现问题时必须提升版本号并生成新 Release，不得替换旧版本安装器；只有尚未公开的草稿可以在修复流水线后按同一版本重试。
 
 ## 8. updater 签名与 Authenticode
 

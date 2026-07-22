@@ -85,7 +85,7 @@ npm.cmd run desktop:bundle:windows
 - 首次安装：用户从 [`v0.1.0` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.0) 手动下载 Windows x64 `setup.exe` 并安装；安装范围为当前用户。
 - 后续更新：正常模式启动后立即静默检查一次，此后每 24 小时检查；更多菜单提供“检查更新”。发现新版本后，用户点击“安装更新”才会下载、安装并重启应用。
 - 冒烟隔离：smoke 前端不会启动更新控制器，Rust 更新服务也会在访问网络前拒绝请求，避免测试触碰正式更新源。
-- 自动发布：`.github/workflows/release.yml` 支持从 `main` 手动触发和 `v*` 标签触发；`tauri-apps/tauri-action@v1` 先生成草稿 Release、安装器、更新签名和 `latest.json`，工作流用客户端公钥验签并核对元数据后才自动发布。
+- 自动发布：`.github/workflows/release.yml` 支持从 `main` 手动触发和 `v*` 标签触发；已公开的版本禁止覆盖，新版本必须先同步提升三个版本号。`tauri-apps/tauri-action@v1` 先生成草稿 Release、安装器、更新签名和 `latest.json`，工作流用客户端公钥验签并核对元数据后才自动发布。
 - 发布密钥：仓库只约定 GitHub Actions Secrets `TAURI_SIGNING_PRIVATE_KEY` 与 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；私钥和密码不得提交到仓库，应在受控的加密离线位置保留恢复备份。
 - Windows Authenticode 代码签名暂未配置。Tauri 的 `.sig` 用于校验自动更新产物，不能替代 Authenticode；首次运行安装器时可能出现 Microsoft Defender SmartScreen 提示。
 
