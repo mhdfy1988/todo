@@ -84,8 +84,20 @@ test("发布工作流先过门禁，再上传安装器、签名和 latest.json",
   assert.match(workflow, /Invoke-WebRequest -Uri \$downloadUrl/);
   assert.match(workflow, /Get-FileHash -LiteralPath \$downloadedInstaller/);
   assert.match(workflow, /EXPECTED_RELEASE_BODY: \$\{\{ steps\.changelog\.outputs\.releaseBody \}\}/);
+  const draftCheck = readWorkflowStep("核对草稿 Release 更新日志");
+  assert.match(draftCheck, /id: draft_release/);
+  assert.match(draftCheck, /releases\?per_page=100/);
+  assert.match(draftCheck, /Where-Object \{ \$_.tag_name -eq \$tag \}/);
+  assert.doesNotMatch(draftCheck, /releases\/tags\//);
   assert.match(workflow, /草稿 Release 正文与 CHANGELOG 当前版本段不一致/);
-  assert.match(workflow, /gh release edit .*--draft=false --latest/);
+  assert.match(draftCheck, /releaseId=\$\(\$release\.id\)/);
+  const publish = readWorkflowStep("发布已验证的 Release");
+  assert.match(publish, /steps\.draft_release\.outputs\.releaseId/);
+  assert.match(publish, /gh api --method PATCH/);
+  assert.match(publish, /releases\/\$releaseId/);
+  assert.match(publish, /-F draft=false/);
+  assert.match(publish, /-f make_latest=true/);
+  assert.doesNotMatch(publish, /gh release edit/);
 });
 
 test("前端只开放核心能力和剪贴板写文本权限", () => {

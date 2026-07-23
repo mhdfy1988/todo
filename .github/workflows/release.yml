@@ -127,18 +127,29 @@ jobs:
           }
 
       - name: 核对草稿 Release 更新日志
+        id: draft_release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           EXPECTED_RELEASE_BODY: ${{ steps.changelog.outputs.releaseBody }}
         run: |
           $package = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
-          $release = gh api "repos/${{ github.repository }}/releases/tags/v$($package.version)" | ConvertFrom-Json
+          $tag = "v$($package.version)"
+          $releases = gh api "repos/${{ github.repository }}/releases?per_page=100" | ConvertFrom-Json
+          $matches = @($releases | Where-Object { $_.tag_name -eq $tag })
+          if ($matches.Count -ne 1) {
+            throw "期望找到唯一的 $tag 草稿 Release，实际为 $($matches.Count) 个"
+          }
+          $release = $matches[0]
+          if (-not $release.draft) {
+            throw "$tag 在完成全部发布验证前已经不是草稿"
+          }
           $expected = ($env:EXPECTED_RELEASE_BODY -replace "`r`n", "`n").Trim()
           $actual = ($release.body -replace "`r`n", "`n").Trim()
           if ($actual -ne $expected) {
             throw '草稿 Release 正文与 CHANGELOG 当前版本段不一致'
           }
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "releaseId=$($release.id)" -Encoding utf8
 
       - name: 发布已验证的 Release
         shell: pwsh
@@ -146,4 +157,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $package = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
-          gh release edit "v$($package.version)" --target "${{ github.sha }}" --draft=false --latest --repo "${{ github.repository }}"
+          $tag = "v$($package.version)"
+          $releaseId = '${{ steps.draft_release.outputs.releaseId }}'
+          if (-not $releaseId) { throw '缺少已经核对的草稿 Release ID' }
+          $published = gh api --method PATCH "repos/${{ github.repository }}/releases/$releaseId" `
+            -F draft=false `
+            -F prerelease=false `
+            -f make_latest=true `
+            -f target_commitish="${{ github.sha }}" | ConvertFrom-Json
+          if ($published.draft -or $published.tag_name -ne $tag -or $published.target_commitish -ne '${{ github.sha }}') {
+            throw "$tag 正式发布后的状态或目标提交不正确"
+          }

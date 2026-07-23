@@ -116,7 +116,7 @@ UpdateController
 5. 运行统一门禁、Rust 格式检查和 Clippy。
 6. 通过 `tauri-apps/tauri-action@v1` 构建 Windows x64 NSIS，并把安装器、`.sig` 与 `latest.json` 上传到草稿 Release。Release 正文只使用 CHANGELOG 当前版本段，不再附加 GitHub 自动提交摘要。
 7. 使用客户端内嵌公钥对实际安装器和 `.sig` 做密码学验签，同时核对 `latest.json` 的版本、平台、签名和下载地址；再按元数据地址重新下载安装器并与本次构建产物比较 SHA-256。
-8. 回读草稿 Release 正文并与本地抽取结果逐字核对；只有正文、签名和元数据全部通过，才把草稿转为正式 GitHub Release。失败时保留草稿，不进入 `releases/latest`。
+8. 通过 releases 列表定位当前标签的唯一草稿，按 Release ID 回读正文并与本地抽取结果逐字核对；只有正文、签名和元数据全部通过，才使用官方 Update Release API 按同一 ID 转为正式 GitHub Release。按标签查询的端点只返回已发布 Release，不能用于草稿回读。失败时保留草稿，不进入 `releases/latest`。
 
 `v0.1.2` 已通过上述流程正式发布：[GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.2)。公开 Release 与更新资产已经升级到 `0.1.2`，当前 Windows 用户安装基线仍为 `0.1.1`；因此应用内升级还必须实机核对 v4 迁移前备份、父子任务投影和原有数据保留。
 
