@@ -1,9 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { assertLedgerSnapshot } from "../app/ledger-contract.js";
 import { LedgerSession } from "../app/ledger-session.js";
 import { LedgerPhase } from "../app/state.js";
 import { MemoryOutboxStore } from "../app/infrastructure/outbox-store.js";
+
+test("账本快照必须提供权威有效完成事实投影", () => {
+  const valid = snapshot();
+  assert.equal(assertLedgerSnapshot(valid), valid);
+
+  const { effectiveCompletions: _missing, ...invalid } = valid;
+  assert.throws(() => assertLedgerSnapshot(invalid), /本地账本返回了无效快照/);
+});
 
 test("写命令调用前已经保存稳定 operationId", async () => {
   const outbox = new RecordingOutboxStore();
@@ -26,6 +35,90 @@ test("写命令调用前已经保存稳定 operationId", async () => {
   assert.deepEqual(outbox.saved.map((item) => item.committed), [false, true]);
   assert.equal(outbox.load(), null);
   assert.equal(session.state.phase, LedgerPhase.READY);
+});
+
+test("新增子代办使用独立命令、父项上下文和可靠操作箱", async () => {
+  const outbox = new RecordingOutboxStore();
+  const calls = [];
+  const session = createSession({
+    gateway: createGateway({
+      executeLedgerOperation: async (operation) => calls.push(structuredClone(operation)),
+    }),
+    outbox,
+    operationId: "create-subtask-id",
+  });
+  await session.start();
+
+  const operation = await session.createSubtask("parent-id", "  整理问题  ");
+
+  assert.deepEqual(calls, [{
+    key: "create-subtask:parent-id:整理问题",
+    operationId: "create-subtask-id",
+    command: "create_subtask",
+    payload: { parentTaskId: "parent-id", title: "整理问题" },
+    committed: false,
+  }]);
+  assert.equal(operation.committed, true);
+  assert.deepEqual(outbox.saved.map((item) => item.committed), [false, true]);
+  assert.equal(outbox.load(), null);
+});
+
+test("子代办同组重排保存父项、完整期望顺序并防止调用方数组回写", async () => {
+  const outbox = new RecordingOutboxStore();
+  const calls = [];
+  const expectedTaskIds = ["child-a", "child-b", "child-c"];
+  const orderedTaskIds = ["child-b", "child-a", "child-c"];
+  const session = createSession({
+    gateway: createGateway({
+      executeLedgerOperation: async (operation) => calls.push(structuredClone(operation)),
+    }),
+    outbox,
+    operationId: "reorder-subtasks-id",
+  });
+  await session.start();
+
+  const promise = session.reorderSubtasks(
+    "parent-id",
+    "child-b",
+    expectedTaskIds,
+    orderedTaskIds,
+  );
+  expectedTaskIds.reverse();
+  orderedTaskIds.reverse();
+  await promise;
+
+  assert.deepEqual(calls[0], {
+    key: "reorder-subtasks:parent-id:child-b",
+    operationId: "reorder-subtasks-id",
+    command: "reorder_subtasks",
+    payload: {
+      parentTaskId: "parent-id",
+      movedTaskId: "child-b",
+      expectedTaskIds: ["child-a", "child-b", "child-c"],
+      orderedTaskIds: ["child-b", "child-a", "child-c"],
+    },
+    committed: false,
+  });
+  assert.equal(outbox.load(), null);
+});
+
+test("子代办命令在写入操作箱前拒绝无效父项、标题和跨集合重排", async () => {
+  const outbox = new RecordingOutboxStore();
+  let calls = 0;
+  const session = createSession({
+    gateway: createGateway({ executeLedgerOperation: async () => { calls += 1; } }),
+    outbox,
+  });
+  await session.start();
+
+  assert.throws(() => session.createSubtask("", "标题"), /父代办 ID 无效/);
+  assert.throws(() => session.createSubtask("parent", "   "), /任务标题不能为空/);
+  assert.throws(
+    () => session.reorderSubtasks("parent", "child-a", ["child-a", "child-b"], ["child-a", "child-c"]),
+    /同一组任务/,
+  );
+  assert.equal(calls, 0);
+  assert.equal(outbox.saved.length, 0);
 });
 
 test("可以按任务 ID 完成任意待办并复用可靠写入链", async () => {
@@ -601,6 +694,8 @@ function snapshot({ balance = 0 } = {}) {
     currentTask: null,
     queue: [],
     completed: [],
+    subtasks: [],
+    effectiveCompletions: [],
     events: [],
     rewards: [],
     balance,

@@ -5,6 +5,8 @@
  * @property {Object | null} currentTask
  * @property {Array<Object>} queue
  * @property {Array<Object>} completed
+ * @property {Array<Object>} subtasks
+ * @property {Array<Object>} effectiveCompletions
  * @property {Array<Object>} events
  * @property {Array<Object>} rewards
  * @property {number} balance
@@ -31,6 +33,8 @@ export function emptySnapshot() {
     currentTask: null,
     queue: [],
     completed: [],
+    subtasks: [],
+    effectiveCompletions: [],
     events: [],
     rewards: [],
     balance: 0,

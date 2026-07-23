@@ -1,8 +1,8 @@
 # 代办：Windows 发布与自动更新 v0.1
 
-> 状态：`v0.1.0` GitHub Release 与当前用户安装基线已验证；`v0.1.1` 源码候选正在完成发布门禁，版本间升级闭环尚未执行
-> 更新时间：2026-07-22
-> 适用版本：`0.1.0 → 0.1.1`
+> 状态：`v0.1.2` 已按标准 CHANGELOG 和签名闭环正式发布；当前用户安装基线仍为 `v0.1.1`，版本间升级与 schema v4→v5 真实数据迁移尚待实机验证
+> 更新时间：2026-07-23
+> 适用版本：`0.1.1 → 0.1.2`
 
 ## 1. 当前结论
 
@@ -12,12 +12,15 @@
 | Tauri 更新签名 | 已实现并完成本地验证 | 本机已成功生成对应 `.sig` |
 | 应用内检查与安装 | 已实现 | normal 模式启动检查、24 小时间隔、菜单手动检查和用户点击安装 |
 | smoke 更新网络隔离 | 已实现 | 前端不启动更新控制器，Rust 在访问网络前再次拒绝 |
-| GitHub Actions 发布 | 已实现并完成首次验证 | 支持手动触发和 `v*` 标签触发；`v0.1.0` 流水线已成功 |
-| 首个 GitHub Release | 已完成 | `v0.1.0` 已发布为 Latest，安装器、`.sig` 与 `latest.json` 均已上传 |
+| GitHub Actions 发布 | 已实现并完成线上验证 | 支持手动触发和 `v*` 标签触发；`v0.1.2` 已通过并正式发布 |
+| 当前 GitHub Release | 已完成 | `v0.1.2` 已发布为 Latest，安装器、`.sig` 与 `latest.json` 均已上传 |
 | `latest.json` 线上读取 | 已验证 | 已从公开 Latest 地址匿名读取，并按其中地址下载、验签安装器及核对资产摘要 |
-| 当前用户安装基线 | 已验证 | Windows 卸载注册信息显示“代办”安装版本为 `0.1.0`，安装位置为 `D:\代办` |
-| `v0.1.1` 候选 | 发布前验证中 | 新增“复制本周完成”；不变更应用标识、更新端点、签名公钥或数据库结构 |
-| `0.1.0 → 0.1.1` 应用内升级 | 待执行 | 必须由已安装的 `0.1.0` 发现更新，并由用户点击安装后核对重启、版本和数据保留 |
+| 当前用户安装基线 | 已验证 | Windows 卸载注册信息显示“代办”安装版本为 `0.1.1`，安装位置为 `D:\代办` |
+| `v0.1.2` 正式版 | 已发布 | 新增一级子代办与 schema v5；应用标识、更新端点与签名公钥保持不变，数据库会从 schema v4 受检迁移到 v5 |
+| `0.1.2` 隔离测试包 | 已重建并通过自动验证 | 产品名“代办测试版”，identifier 为 `com.luoji.zuoban.spike.candidate`，使用独立应用数据目录且不生成 updater 签名 |
+| 标准更新日志 | 已接入发布门禁 | 根目录 `CHANGELOG.md` 遵循 Keep a Changelog；`0.1.2` 已收口到带实际日期的正式版本段 |
+| schema v5 降级 | 不支持 | 正式 `0.1.2` 迁移后的 normal 数据不能交给 `0.1.1` 的 v4 客户端读取；安装回退不等于数据回退 |
+| `0.1.1 → 0.1.2` 应用内升级 | 待执行 | 必须由已安装的 `0.1.1` 发现更新，并由用户点击安装后核对重启、版本和数据保留 |
 | Windows Authenticode | 暂未配置 | 安装器可能触发 Microsoft Defender SmartScreen 提示 |
 
 ## 2. 目标与边界
@@ -30,6 +33,18 @@
 - 发现新版本不会直接安装；用户点击“安装更新”才表示确认。
 - 更新失败必须显式提示，不静默回退到旧更新实现。
 - 当前不提供 MSI、macOS 或 Linux 安装包。
+
+### 2.1 本地候选试用包
+
+正式发布前的手感试用使用 `src-tauri/tauri.candidate.conf.json` 合并配置：
+
+```powershell
+npx.cmd tauri build --bundles nsis --ci --no-sign --config src-tauri\tauri.candidate.conf.json
+```
+
+该配置只改变测试安装身份：产品名为“代办测试版”，identifier 为 `com.luoji.zuoban.spike.candidate`，并关闭 `createUpdaterArtifacts`。因此它与正式“代办”的安装身份、应用数据目录和窗口状态目录隔离，也不会生成 `.sig`；它不能替代正式发布命令，正式 Release 仍必须恢复默认配置并由 GitHub Actions 使用既有私钥签名。
+
+隔离测试包不会迁移正式 `v0.1.1` 数据。正式 `0.1.2` 首次打开 normal 数据库时会先生成并验证 before-v5 备份，再把 schema v4 迁移为 v5；迁移完成后旧 `0.1.1` 会以 `UNSUPPORTED_SCHEMA_VERSION` 显式拒绝该数据库。需要恢复旧版时必须同时恢复迁移前备份，不能只回退安装程序。
 
 ## 3. 用户流程
 
@@ -96,13 +111,14 @@ UpdateController
 
 1. 安装锁定的 Node 依赖与 Rust stable 工具链。
 2. 校验 `package.json`、`src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml` 版本一致；标签触发时还要求标签等于 `v<版本号>`。
-3. 查询同版本公开 Release；若已经发布则失败快，禁止覆盖既有安装器、签名和 `latest.json`。失败后的草稿允许使用同版本重试。
-4. 运行统一门禁、Rust 格式检查和 Clippy。
-5. 通过 `tauri-apps/tauri-action@v1` 构建 Windows x64 NSIS，并把安装器、`.sig` 与 `latest.json` 上传到草稿 Release。
-6. 使用客户端内嵌公钥对实际安装器和 `.sig` 做密码学验签，同时核对 `latest.json` 的版本、平台、签名和下载地址；再按元数据地址重新下载安装器并与本次构建产物比较 SHA-256。
-7. 只有验证通过，才把草稿自动转为正式 GitHub Release；失败时保留草稿，不进入 `releases/latest`。
+3. 读取根目录 `CHANGELOG.md`：文件必须保留 `Unreleased`，当前版本必须存在唯一的 `## [x.y.z] - YYYY-MM-DD` 段，且只使用 `Added`、`Changed`、`Deprecated`、`Removed`、`Fixed`、`Security` 标准分类。若候选内容还没有从 `Unreleased` 收口，发布直接失败。
+4. 查询同版本公开 Release；若已经发布则失败快，禁止覆盖既有安装器、签名和 `latest.json`。失败后的草稿允许使用同版本重试。
+5. 运行统一门禁、Rust 格式检查和 Clippy。
+6. 通过 `tauri-apps/tauri-action@v1` 构建 Windows x64 NSIS，并把安装器、`.sig` 与 `latest.json` 上传到草稿 Release。Release 正文只使用 CHANGELOG 当前版本段，不再附加 GitHub 自动提交摘要。
+7. 使用客户端内嵌公钥对实际安装器和 `.sig` 做密码学验签，同时核对 `latest.json` 的版本、平台、签名和下载地址；再按元数据地址重新下载安装器并与本次构建产物比较 SHA-256。
+8. 回读草稿 Release 正文并与本地抽取结果逐字核对；只有正文、签名和元数据全部通过，才把草稿转为正式 GitHub Release。失败时保留草稿，不进入 `releases/latest`。
 
-`v0.1.0` 已通过上述流程发布：[GitHub Actions 运行记录](https://github.com/mhdfy1988/todo/actions/runs/29899650153)。发布后又通过公开 Latest 地址独立下载并复验了元数据、安装器、签名与 GitHub 资产摘要。当前 Windows 用户环境也已安装 `0.1.0`，可作为后续升级基线；这些结果仍不等于已经完成 `0.1.0 → 0.1.1` 的应用内升级。
+`v0.1.2` 已通过上述流程正式发布：[GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.2)。公开 Release 与更新资产已经升级到 `0.1.2`，当前 Windows 用户安装基线仍为 `0.1.1`；因此应用内升级还必须实机核对 v4 迁移前备份、父子任务投影和原有数据保留。
 
 ## 7. 发布密钥
 
@@ -135,9 +151,11 @@ GitHub Actions 只约定以下 Secrets 名称：
 - [x] 在 Windows x64 当前用户环境完成 `v0.1.0` 手动首次安装，并由卸载注册信息核对版本与安装位置。
 - [ ] 确认 normal 启动检查和菜单手动检查能读取线上元数据。
 - [x] 确认 smoke 前端无入口，Rust 在访问网络前拒绝更新。
-- [ ] 发布 `v0.1.1` 并从公网重新下载 `latest.json`、安装器与 `.sig`，独立核对版本、摘要和签名。
-- [ ] 用已安装的 `v0.1.0` 完成一次“发现 `v0.1.1` → 用户点击安装 → 下载校验 → 安装重启”实机闭环。
-- [ ] 升级后核对 Windows 安装版本、新增“复制本周”入口、原有待办与完成记录、托盘单实例和再次检查更新结果。
+- [x] `v0.1.1` 已正式发布，公开 Release 包含 `latest.json`、安装器与 `.sig`，当前用户安装基线也已升级为 `0.1.1`。
+- [x] 根目录已建立标准 `CHANGELOG.md`，发布工作流已改为从当前版本段生成并回读核对 Release 正文。
+- [x] 正式发布 `v0.1.2` 当天，把 `Unreleased` 内容移动到 `## [0.1.2] - 实际日期`，更新版本比较链接并运行 `npm.cmd run release:changelog:check`。
+- [ ] 用已安装的 `v0.1.1` 完成一次“发现 `v0.1.2` → 用户点击安装 → 下载校验 → 安装重启”实机闭环。
+- [ ] 升级后核对 Windows 安装版本、新增“复制本周”与一级子代办入口、schema v4 → v5 备份及迁移、原有待办与完成记录、托盘单实例和再次检查更新结果。
 - [ ] 记录 SmartScreen 实际表现；若进入公开分发，再单独评估 Authenticode 证书。
 
-当前准确口径是“`v0.1.0` 首次线上发布、公网产物与当前用户安装基线已验证；`v0.1.1` 仍是源码候选，发布、公网产物复验和 `0.1.0 → 0.1.1` 应用内升级闭环尚未完成”。
+当前准确口径是“`v0.1.2` 已正式发布并成为公开 Latest，安装器、更新签名、`latest.json` 与 Release 正文已经流水线闭环验证；当前用户安装基线仍为 `v0.1.1`，`0.1.1 → 0.1.2` 应用内升级、schema v4→v5 真实数据迁移和升级后功能核对尚未完成”。

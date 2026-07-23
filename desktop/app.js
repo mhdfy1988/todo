@@ -8,6 +8,7 @@ import { mountPetComponents } from "./app/pet-component.js";
 import { LedgerView, ToastView } from "./app/views.js";
 import { ShellController } from "./app/shell-controller.js";
 import { TaskListController } from "./app/task-list-controller.js";
+import { SubtaskController } from "./app/subtask-controller.js";
 import { isSearchShortcut, ListSearchController } from "./app/list-search-controller.js";
 import { WindowController } from "./app/window-controller.js";
 import { millisecondsUntilNextLocalDay } from "./app/deadline-date.js";
@@ -25,6 +26,7 @@ const moreMenu = document.querySelector("#moreMenu");
 const toast = new ToastView(document.querySelector("#toast"), window);
 const ledgerView = new LedgerView(document);
 let taskListController = null;
+let subtaskController = null;
 const searchController = new ListSearchController({
   root,
   form: document.querySelector("#listSearchForm"),
@@ -40,6 +42,7 @@ const searchController = new ListSearchController({
   onChange: (searchState) => {
     ledgerView.setSearch(searchState);
     taskListController?.restorePendingFocus();
+    subtaskController?.restorePendingFocus();
   },
 });
 const shellController = new ShellController({ root, menu: moreMenu, search: searchController });
@@ -110,11 +113,27 @@ function startDesktopApplication(activeGateway) {
     isSearchActive: () => searchController.isActive("tasks"),
     focusSearchFallback: () => searchController.focus({ select: false }),
   });
+  subtaskController = new SubtaskController({
+    list: taskList,
+    status: taskOrderStatus,
+    deleteDialog: document.querySelector("#deleteGroupDialog"),
+    deleteDialogTitle: document.querySelector("#deleteGroupDialogTitle"),
+    onCreate: (parentTaskId, title) => session.createSubtask(parentTaskId, title),
+    onUpdateTitle: (taskId, title) => session.updateTaskTitle(taskId, title),
+    onReorder: (parentTaskId, movedTaskId, expectedTaskIds, orderedTaskIds) => (
+      session.reorderSubtasks(parentTaskId, movedTaskId, expectedTaskIds, orderedTaskIds)
+    ),
+    onError: (error) => handleMutationFailure(session, error),
+    canMutate: () => session.canMutate(),
+    isSearchActive: () => searchController.isActive("tasks"),
+    focusSearchFallback: () => searchController.focus({ select: false }),
+  });
   scheduleDeadlinePresentationRefresh(ledgerView);
 
   session.subscribe((state) => {
     ledgerView.render(state);
     taskListController.restorePendingFocus();
+    subtaskController.restorePendingFocus();
   });
 
   captureForm.addEventListener("submit", async (event) => {
@@ -148,6 +167,7 @@ function startDesktopApplication(activeGateway) {
         shellController,
         searchController,
         taskListController,
+        subtaskController,
         updateController,
         weeklyCompletionController,
         windowController,
@@ -168,6 +188,7 @@ function startDesktopApplication(activeGateway) {
 
   window.addEventListener("keydown", async (event) => {
     if (event.isComposing || event.keyCode === 229 || searchController.isComposing()) return;
+    if (document.querySelector("#deleteGroupDialog")?.open) return;
     if (isSearchShortcut(event)) {
       event.preventDefault();
       try {
@@ -251,6 +272,7 @@ async function handleAction({
   shellController,
   searchController,
   taskListController,
+  subtaskController,
   updateController,
   weeklyCompletionController,
   windowController,
@@ -259,7 +281,10 @@ async function handleAction({
     case "expanded":
       await windowController.setMode(action);
       shellController.showTasks();
-      taskTitleInput.focus();
+      if (!subtaskController.revealFromCapsule(
+        button.dataset.parentTaskId,
+        button.dataset.taskId,
+      )) taskTitleInput.focus();
       return;
     case "edit-current-deadline":
       await windowController.setMode("expanded");
@@ -275,10 +300,16 @@ async function handleAction({
       shellController.showTasks();
       return;
     case "show-history":
+      ledgerView.resetHistoryExpansion();
+      subtaskController.sync();
       shellController.showHistory();
       return;
     case "show-tasks":
       shellController.showTasks();
+      return;
+    case "toggle-history-group":
+      ledgerView.toggleHistoryGroup(button.dataset.parentTaskId);
+      subtaskController.sync();
       return;
     case "search":
       shellController.closeMenu();
@@ -301,7 +332,14 @@ async function handleAction({
     case "complete-task": {
       const taskId = button.dataset.taskId;
       if (!taskId) return;
-      taskListController.rememberCompletionFocus(taskId);
+      const isSubtask = button.dataset.isSubtask === "true";
+      if (!isSubtask) {
+        taskListController.rememberCompletionFocus(taskId);
+      } else {
+        if (button.id !== "capsuleTaskCheckbox") {
+          subtaskController.rememberSubtaskFocus(button.dataset.parentTaskId, taskId);
+        }
+      }
       const operation = await session.completeTask(taskId);
       if (operation) toast.show("已完成");
       return;
@@ -309,14 +347,30 @@ async function handleAction({
     case "delete-task": {
       const taskId = button.dataset.taskId;
       if (!taskId) return;
-      taskListController.rememberRemovalFocus(taskId);
+      const isSubtask = button.dataset.isSubtask === "true";
+      if (!isSubtask && button.dataset.hasSubtasks === "true") {
+        const confirmed = await subtaskController.confirmGroupDeletion(button.dataset.taskTitle || "该代办");
+        if (!confirmed) return;
+      }
+      if (isSubtask) {
+        subtaskController.rememberSubtaskFocus(button.dataset.parentTaskId, taskId, { remains: false });
+      } else {
+        taskListController.rememberRemovalFocus(taskId);
+      }
       const operation = await session.deleteTask(taskId);
       if (operation) toast.show("已从待办删除");
       return;
     }
     case "undo-completion": {
+      const isSubtask = button.dataset.isSubtask === "true";
+      if (isSubtask && button.dataset.parentTaskId && button.closest("#taskList")) {
+        subtaskController.rememberSubtaskFocus(
+          button.dataset.parentTaskId,
+          button.dataset.taskId || "",
+        );
+      }
       const operation = await session.undoCompletion(button.dataset.eventId);
-      if (operation) toast.show("已撤销，任务回到队尾");
+      if (operation) toast.show(isSubtask ? "已撤销子代办完成" : "已撤销，任务回到队尾");
       searchController.focus({ select: false });
       return;
     }

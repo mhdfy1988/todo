@@ -1,6 +1,6 @@
 [package]
 name = "zuoban-desktop-spike"
-version = "0.1.1"
+version = "0.1.2"
 description = "本地优先的 Windows 桌面悬浮待办应用"
 authors = ["luoji"]
 license = "MIT"
@@ -24,6 +24,7 @@ uuid = { version = "1.23.5", features = ["v4"] }
 [dev-dependencies]
 base64 = "0.22.1"
 minisign-verify = "0.2.5"
+tauri = { version = "2.11.5", features = ["test"] }
 
 [profile.dev]
 incremental = true

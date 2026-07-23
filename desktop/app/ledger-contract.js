@@ -1,8 +1,10 @@
 export const LedgerCommand = Object.freeze({
   CAPTURE: "capture_task",
+  CREATE_SUBTASK: "create_subtask",
   COMPLETE: "complete_task",
   DELETE: "delete_task",
   REORDER_TASKS: "reorder_tasks",
+  REORDER_SUBTASKS: "reorder_subtasks",
   UPDATE_DEADLINE: "update_task_deadline",
   UPDATE_TITLE: "update_task_title",
   UNDO: "undo_completion",
@@ -77,6 +79,33 @@ export function assertUpdateTaskTitlePayload(value) {
 export function isValidUpdateTaskTitlePayload(value) {
   try {
     assertUpdateTaskTitlePayload(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function assertCreateSubtaskPayload(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("新增子代办命令 payload 无效");
+  }
+  const keys = Object.keys(value).sort();
+  if (keys.length !== 2 || keys[0] !== "parentTaskId" || keys[1] !== "title") {
+    throw new TypeError("新增子代办命令 payload 字段无效");
+  }
+  assertTaskId(value.parentTaskId, "父代办");
+  if (value.parentTaskId !== value.parentTaskId.trim()) {
+    throw new TypeError("父代办 ID 无效");
+  }
+  const normalized = normalizeTaskTitle(value.title);
+  if (normalized !== value.title) {
+    throw new TypeError("子代办标题必须去除首尾空白");
+  }
+}
+
+export function isValidCreateSubtaskPayload(value) {
+  try {
+    assertCreateSubtaskPayload(value);
     return true;
   } catch {
     return false;
@@ -172,6 +201,35 @@ export function isValidReorderPayload(value) {
   }
 }
 
+export function assertReorderSubtasksPayload(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("子代办重排命令 payload 无效");
+  }
+  const keys = Object.keys(value).sort();
+  const expectedKeys = ["expectedTaskIds", "movedTaskId", "orderedTaskIds", "parentTaskId"];
+  if (keys.length !== expectedKeys.length || keys.some((key, index) => key !== expectedKeys[index])) {
+    throw new TypeError("子代办重排命令 payload 字段无效");
+  }
+  assertTaskId(value.parentTaskId, "父代办");
+  if (value.parentTaskId !== value.parentTaskId.trim()) {
+    throw new TypeError("父代办 ID 无效");
+  }
+  assertReorderPayload({
+    movedTaskId: value.movedTaskId,
+    expectedTaskIds: value.expectedTaskIds,
+    orderedTaskIds: value.orderedTaskIds,
+  });
+}
+
+export function isValidReorderSubtasksPayload(value) {
+  try {
+    assertReorderSubtasksPayload(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function assertTaskIdList(value, label) {
   if (!Array.isArray(value) || value.length < 2) {
     throw new TypeError(`${label}至少需要两个任务`);
@@ -206,6 +264,8 @@ export function assertLedgerSnapshot(value) {
     && (value.currentTask === null || typeof value.currentTask === "object")
     && Array.isArray(value.queue)
     && Array.isArray(value.completed)
+    && Array.isArray(value.subtasks)
+    && Array.isArray(value.effectiveCompletions)
     && Array.isArray(value.events)
     && Array.isArray(value.rewards)
     && Number.isInteger(value.balance)

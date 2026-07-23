@@ -75,6 +75,7 @@
         <button id="capsuleTitleButton" type="button" class="capsule-title-button" data-action="expanded" aria-label="正在读取本地账本">
           <strong id="capsuleTaskTitle">本地账本加载中</strong>
         </button>
+        <span id="capsuleTaskProgress" class="capsule-progress" hidden></span>
         <button id="capsuleTaskDeadline" type="button" class="capsule-deadline" data-action="edit-current-deadline" hidden></button>
       </div>
       <button type="button" class="capsule-hide-button" data-action="hide" aria-label="隐藏到托盘" title="隐藏到托盘">
@@ -100,5 +101,16 @@
   </template>
 
   <div id="toast" class="toast" role="status"></div>
+
+  <dialog id="deleteGroupDialog" class="confirm-dialog" aria-labelledby="deleteGroupDialogTitle">
+    <form method="dialog">
+      <strong id="deleteGroupDialogTitle">删除整个任务组？</strong>
+      <p>整个任务组将从当前列表移除。<br>已有完成记录仍然保留。</p>
+      <div class="confirm-dialog-actions">
+        <button type="submit" value="cancel" autofocus>取消</button>
+        <button type="submit" value="confirm" class="danger-button">删除整个任务组</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>

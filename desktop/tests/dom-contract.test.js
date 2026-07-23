@@ -39,9 +39,12 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
     "historyList",
     "capsuleTitleButton",
     "capsuleTaskTitle",
+    "capsuleTaskProgress",
     "capsuleTaskDeadline",
     "capsuleTaskCheckbox",
     "moreMenu",
+    "deleteGroupDialog",
+    "deleteGroupDialogTitle",
     "toast",
   ];
   const actions = [
@@ -80,10 +83,15 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
   assert.match(styles, /\.history-copy time\s*\{[^}]*margin-left:\s*auto;[^}]*white-space:\s*nowrap;/s);
   assert.match(styles, /\.panel-heading \.heading-text-action\s*\{[^}]*width:\s*auto;[^}]*margin-left:\s*auto;[^}]*font-size:\s*10px;/s);
   assert.match(styles, /\.history-list button\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px;[^}]*border:\s*0;/s);
+  assert.match(styles, /\.capture-form button\s*\{[^}]*color:\s*var\(--soft\);[^}]*font-weight:\s*600;/s);
+  assert.match(styles, /\.capture-form button:not\(:disabled\):hover\s*\{[^}]*background:\s*var\(--wash\);[^}]*color:\s*var\(--ink\);/s);
+  assert.doesNotMatch(styles, /\.capture-form button\s*\{[^}]*background:\s*var\(--dark\)/s);
   assert.match(
     app,
     /case "copy-weekly-completions":\s*await weeklyCompletionController\.copyCurrentWeek\(\);\s*return;/s,
   );
+  assert.doesNotMatch(app, /button\.checked = false|incompleteCount|revealFirstPending\(taskId/);
+  assert.match(app, /const operation = await session\.completeTask\(taskId\);/);
   assert.match(app, /const ledgerBoundReadAction = action === "copy-weekly-completions";/);
   assert.match(
     app,
@@ -121,8 +129,8 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
   assert.match(styles, /\.capsule-hide-icon\s*\{[^}]*border-right:\s*1px solid currentColor;[^}]*border-bottom:\s*1px solid currentColor;[^}]*transform:\s*rotate\(45deg\);/s);
   assert.equal(html.match(/data-action="hide"/g)?.length, 2);
   assert.match(views, /current\?\.title \?\? "暂无待办"/);
-  assert.match(views, /current \? `当前待办：\$\{current\.title\}，展开任务面板` : "暂无待办，展开任务面板"/);
-  assert.match(views, /capsuleTaskCheckbox\.hidden = !current/);
+  assert.match(views, /current \? `当前待办：\$\{actionTitle\}，展开任务面板` : "暂无待办，展开任务面板"/);
+  assert.match(views, /capsuleTaskCheckbox\.hidden = !action/);
   assert.match(html, /id="capsuleTaskDeadline"[^>]+data-action="edit-current-deadline"/);
   assert.match(views, /#renderCapsuleDeadline\(current\?\.deadlineOn \?\? null\)/);
   assert.match(views, /this\.capsuleTaskDeadline\.hidden = !deadline/);
@@ -197,8 +205,8 @@ test("列表搜索保持独立输入、纯过滤与可访问快捷键契约", as
   assert.match(searchStatus, /aria-live="polite"/);
   assert.match(searchStatus, /aria-atomic="true"/);
 
-  assert.match(views, /filterTasksByTitle\(tasks, query\)/);
-  assert.match(views, /filterCompletionEventsByTitle\(completions, query\)/);
+  assert.match(views, /filterTaskGroupsByTitle\(groups, query\)/);
+  assert.match(views, /filterCompletionGroupsByTitle\(groups, query\)/);
   assert.match(views, /document\.createTextNode\(/);
   assert.match(views, /document\.createElement\("mark"\)/);
   assert.match(views, /mark\.className = "search-match"/);
@@ -272,6 +280,7 @@ test("窗口与账本诊断使用完整且统一的通过口径", () => {
     receiptLinks: true,
     taskRewardNetValues: true,
     taskProjectionMatchesLedger: true,
+    taskHierarchyValid: true,
     failures: [],
   };
 
@@ -279,6 +288,10 @@ test("窗口与账本诊断使用完整且统一的通过口径", () => {
   assert.equal(diagnosticsPassed({ ...status, trayReady: false }, integrity), false);
   assert.equal(
     diagnosticsPassed(status, { ...integrity, taskRewardNetValues: false }),
+    false,
+  );
+  assert.equal(
+    diagnosticsPassed(status, { ...integrity, taskHierarchyValid: false }),
     false,
   );
 });

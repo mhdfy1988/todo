@@ -27,12 +27,53 @@ export function formatWeeklyCompletionMarkdown(completions) {
   if (!Array.isArray(completions) || completions.length === 0) {
     throw new TypeError("本周完成记录不能为空");
   }
-
-  const items = completions.map((event, index) => {
-    const title = event.titleSnapshot.replace(/[\r\n]+/g, " ");
-    return `${index + 1}. ${title}`;
+  const entries = weeklyCompletionEntries(completions);
+  const items = entries.map((entry, index) => {
+    const lines = [`${index + 1}. ${entry.title}`];
+    entry.children.forEach((title) => lines.push(`   - ${title}`));
+    return lines.join("\n");
   });
   return `## 本周完成\n\n${items.join("\n")}`;
+}
+
+/** 父项本周完成时只输出一个父项，子完成事实作为缩进明细。 */
+export function weeklyCompletionEntries(completions) {
+  const parentCompletions = new Map(
+    completions
+      .filter((event) => event.eventType === "completed")
+      .map((event) => [event.taskId, event]),
+  );
+  const childrenByParent = new Map();
+  completions
+    .filter((event) => event.eventType === "subtask_completed")
+    .forEach((event) => {
+      const parentTaskId = event.metadata.parentTaskId;
+      const existing = childrenByParent.get(parentTaskId) ?? [];
+      existing.push(event);
+      childrenByParent.set(parentTaskId, existing);
+    });
+
+  const emittedParents = new Set();
+  const entries = [];
+  completions.forEach((event) => {
+    if (event.eventType === "completed") {
+      if (emittedParents.has(event.taskId)) return;
+      emittedParents.add(event.taskId);
+      entries.push({
+        title: cleanTitle(event.titleSnapshot),
+        children: (childrenByParent.get(event.taskId) ?? [])
+          .map((child) => cleanTitle(child.titleSnapshot)),
+      });
+      return;
+    }
+    const parentTaskId = event.metadata.parentTaskId;
+    if (parentCompletions.has(parentTaskId)) return;
+    entries.push({
+      title: `${cleanTitle(event.metadata.parentTitle)} / ${cleanTitle(event.titleSnapshot)}`,
+      children: [],
+    });
+  });
+  return entries;
 }
 
 /**
@@ -72,7 +113,7 @@ export class WeeklyCompletionController {
       await this.gateway.weeklyFacts(range.fromMs, range.toMs),
       range,
     );
-    const count = facts.effectiveCompletions.length;
+    const count = weeklyCompletionEntries(facts.effectiveCompletions).length;
     if (count === 0) {
       this.toast.show("本周还没有完成记录");
       return { copied: false, count, ...range };
@@ -95,19 +136,55 @@ function assertWeeklyFacts(value, expectedRange) {
   const validCollections = validRange
     && Array.isArray(value.effectiveCompletions)
     && Array.isArray(value.ongoingTasks);
-  const validCompletions = validCollections && value.effectiveCompletions.every((event) => (
-    event
-      && typeof event === "object"
-      && event.eventType === "completed"
-      && typeof event.titleSnapshot === "string"
-      && event.titleSnapshot.trim().length > 0
-      && Number.isSafeInteger(event.occurredAtMs)
-      && event.occurredAtMs >= expectedRange.fromMs
-      && event.occurredAtMs < expectedRange.toMs
-  ));
+  const parentCompletionsInRange = new Set(
+    validCollections
+      ? value.effectiveCompletions
+        .filter((event) => event?.eventType === "completed"
+          && hasValidCompletionShape(event)
+          && isWithinRange(event.occurredAtMs, expectedRange))
+        .map((event) => event.taskId)
+      : [],
+  );
+  const validCompletions = validCollections && value.effectiveCompletions.every((event) => {
+    if (!hasValidCompletionShape(event)) return false;
+    if (event.eventType === "completed") {
+      return isWithinRange(event.occurredAtMs, expectedRange);
+    }
+    const validMetadata = event.metadata
+      && typeof event.metadata === "object"
+      && typeof event.metadata.parentTaskId === "string"
+      && event.metadata.parentTaskId.length > 0
+      && typeof event.metadata.parentTitle === "string"
+      && event.metadata.parentTitle.trim().length > 0;
+    if (!validMetadata) return false;
+    return isWithinRange(event.occurredAtMs, expectedRange)
+      || (event.occurredAtMs < expectedRange.fromMs
+        && parentCompletionsInRange.has(event.metadata.parentTaskId));
+  });
 
   if (!validCompletions) {
     throw new Error("本地账本返回了无效的本周完成记录");
   }
   return value;
+}
+
+function hasValidCompletionShape(event) {
+  return Boolean(
+    event
+      && typeof event === "object"
+      && (event.eventType === "completed" || event.eventType === "subtask_completed")
+      && typeof event.taskId === "string"
+      && event.taskId.length > 0
+      && typeof event.titleSnapshot === "string"
+      && event.titleSnapshot.trim().length > 0
+      && Number.isSafeInteger(event.occurredAtMs),
+  );
+}
+
+function isWithinRange(occurredAtMs, range) {
+  return occurredAtMs >= range.fromMs && occurredAtMs < range.toMs;
+}
+
+function cleanTitle(value) {
+  return String(value ?? "").replace(/[\r\n]+/g, " ").trim();
 }

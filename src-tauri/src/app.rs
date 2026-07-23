@@ -35,11 +35,13 @@ pub(crate) fn run() {
             crate::desktop::commands::hide_to_tray,
             crate::frontend_probe::report_frontend_ready,
             crate::ledger::commands::capture_task,
+            crate::ledger::commands::create_subtask,
             crate::ledger::commands::complete_task,
             crate::ledger::commands::update_task_title,
             crate::ledger::commands::update_task_deadline,
             crate::ledger::commands::delete_task,
             crate::ledger::commands::reorder_tasks,
+            crate::ledger::commands::reorder_subtasks,
             crate::ledger::commands::undo_completion,
             crate::ledger::commands::ledger_snapshot,
             crate::ledger::commands::weekly_facts,
@@ -68,8 +70,8 @@ pub(crate) fn run() {
             main_window.set_always_on_top(true)?;
             main_window.set_skip_taskbar(true)?;
             if had_saved_position {
-                window::ensure_inside_work_area(&main_window)
-                    .map_err(|error| format!("恢复窗口位置失败：{error}"))?;
+                window::place_at_restored_monitor_bottom_right(&main_window)
+                    .map_err(|error| format!("恢复启动胶囊位置失败：{error}"))?;
             } else {
                 window::place_at_primary_bottom_right(&main_window)
                     .map_err(|error| format!("设置初始窗口位置失败：{error}"))?;

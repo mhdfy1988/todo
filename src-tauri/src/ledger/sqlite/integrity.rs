@@ -4,8 +4,8 @@ use super::{
 };
 use crate::ledger::{
     domain::{
-        normalize_deadline_on, normalize_title, IntegrityReport, LedgerError, TaskEvent,
-        TaskEventType, TaskStatus,
+        normalize_command_id, normalize_deadline_on, normalize_title, IntegrityReport, LedgerError,
+        TaskEvent, TaskEventType, TaskStatus,
     },
     service::stored_receipt_from_json,
 };
@@ -137,23 +137,40 @@ pub(super) fn verify_integrity_in(connection: &Connection) -> Result<IntegrityRe
         ));
     }
 
+    let cascade_receipt_links = verify_cascade_completion_links(connection, &mut failures)?;
     let invalid_event_receipts: i64 = connection
         .query_row(
             "SELECT COUNT(*)
              FROM task_events AS event
              LEFT JOIN command_receipts AS receipt ON receipt.command_id = event.command_id
              LEFT JOIN reward_transactions AS reward ON reward.task_event_id = event.id
-                 WHERE receipt.command_id IS NULL
-                 OR receipt.command_type != CASE event.event_type
-                     WHEN 'created' THEN 'capture_task'
-                     WHEN 'completed' THEN 'complete_task'
-                     WHEN 'completion_undone' THEN 'undo_completion'
+             WHERE (
+                     receipt.command_id IS NULL
+                     AND NOT (
+                         event.event_type = 'subtask_completed'
+                         AND event.command_id = 'cascade/' || event.id
+                     )
+                 )
+                 OR (
+                     receipt.command_id IS NOT NULL
+                     AND (
+                         event.command_id GLOB 'cascade/*'
+                         OR receipt.command_type != CASE event.event_type
+                       WHEN 'created' THEN 'capture_task'
+                       WHEN 'subtask_created' THEN 'create_subtask'
+                       WHEN 'completed' THEN 'complete_task'
+                      WHEN 'subtask_completed' THEN 'complete_task'
+                      WHEN 'completion_undone' THEN 'undo_completion'
+                      WHEN 'subtask_completion_undone' THEN 'undo_completion'
                       WHEN 'abandoned' THEN 'delete_task'
                       WHEN 'queue_reordered' THEN 'reorder_tasks'
                        WHEN 'title_updated' THEN 'update_task_title'
                        WHEN 'deadline_updated' THEN 'update_task_deadline'
-                      ELSE receipt.command_type
-                     END",
+                       WHEN 'subtasks_reordered' THEN 'reorder_subtasks'
+                       ELSE receipt.command_type
+                      END
+                     )
+                 )",
             [],
             |row| row.get(0),
         )
@@ -248,7 +265,10 @@ pub(super) fn verify_integrity_in(connection: &Connection) -> Result<IntegrityRe
         }
     }
 
-    let receipt_links = invalid_event_receipts == 0 && orphan_receipts == 0 && receipt_semantics;
+    let receipt_links = invalid_event_receipts == 0
+        && orphan_receipts == 0
+        && receipt_semantics
+        && cascade_receipt_links;
     if invalid_event_receipts != 0 || orphan_receipts != 0 {
         failures.push(format!(
             "事件回执不一致 {invalid_event_receipts} 条，孤立回执 {orphan_receipts} 条"
@@ -257,18 +277,24 @@ pub(super) fn verify_integrity_in(connection: &Connection) -> Result<IntegrityRe
 
     let all_tasks_sql = format!("{TASK_SELECT} ORDER BY id ASC");
     let tasks = query_tasks(connection, &all_tasks_sql, [])?;
+    let task_hierarchy_valid = verify_task_hierarchy(&tasks, &mut failures);
     let mut task_reward_net_values = true;
     let mut task_projection_matches_ledger = true;
     for task in &tasks {
+        let expected_root_event = if task.parent_task_id.is_some() {
+            "subtask_created"
+        } else {
+            "created"
+        };
         let history_root_is_valid: i64 = connection
             .query_row(
                 "SELECT CASE WHEN
                     (SELECT COUNT(*) FROM task_events
-                     WHERE task_id = ?1 AND event_type = 'created') = 1
+                     WHERE task_id = ?1 AND event_type = ?2) = 1
                     AND (SELECT event_type FROM task_events
-                         WHERE task_id = ?1 ORDER BY sequence ASC LIMIT 1) = 'created'
+                         WHERE task_id = ?1 ORDER BY sequence ASC LIMIT 1) = ?2
                  THEN 1 ELSE 0 END",
-                [&task.id],
+                params![task.id, expected_root_event],
                 |row| row.get(0),
             )
             .map_err(|error| storage_error("校验任务历史起点失败", error))?;
@@ -286,11 +312,20 @@ pub(super) fn verify_integrity_in(connection: &Connection) -> Result<IntegrityRe
                 |row| row.get(0),
             )
             .map_err(|error| storage_error("校验任务奖励净值失败", error))?;
-        if !(net == 0 || net == 1) {
+        let reward_net_is_valid = if task.parent_task_id.is_some() {
+            net == 0
+        } else {
+            net == 0 || net == 1
+        };
+        if !reward_net_is_valid {
             task_reward_net_values = false;
             failures.push(format!("任务 {} 的奖励净值为 {net}", task.id));
         }
-        let expected_completed = net == 1;
+        let expected_completed = if task.parent_task_id.is_some() {
+            task.active_completion_event_id.is_some()
+        } else {
+            net == 1
+        };
         let projection_completed = task.status == TaskStatus::Completed
             && task.active_completion_event_id.is_some()
             && task.completed_at_ms.is_some();
@@ -304,13 +339,20 @@ pub(super) fn verify_integrity_in(connection: &Connection) -> Result<IntegrityRe
                     "SELECT COUNT(*) FROM task_events AS completion
                      WHERE completion.id = ?1
                        AND completion.task_id = ?2
-                       AND completion.event_type = 'completed'
+                       AND completion.event_type = CASE
+                           WHEN ?3 = 1 THEN 'subtask_completed' ELSE 'completed' END
                        AND NOT EXISTS (
                            SELECT 1 FROM task_events AS undo
-                           WHERE undo.event_type = 'completion_undone'
+                            WHERE undo.event_type = CASE
+                                WHEN ?3 = 1 THEN 'subtask_completion_undone'
+                                ELSE 'completion_undone' END
                              AND undo.reverses_event_id = completion.id
                        )",
-                    params![active_event_id, task.id],
+                    params![
+                        active_event_id,
+                        task.id,
+                        i64::from(task.parent_task_id.is_some())
+                    ],
                     |row| row.get(0),
                 )
                 .map_err(|error| storage_error("校验有效完成事件失败", error))?;
@@ -363,9 +405,13 @@ pub(super) fn verify_integrity_in(connection: &Connection) -> Result<IntegrityRe
     if !queue_replay_is_valid {
         task_projection_matches_ledger = false;
     }
+    if !task_hierarchy_valid {
+        task_projection_matches_ledger = false;
+    }
 
     let projected_queue_sql = format!(
         "{TASK_SELECT} WHERE status = 'pending' AND defer_until_ms IS NULL \
+         AND parent_task_id IS NULL \
          ORDER BY queue_position ASC"
     );
     let projected_task_ids: Vec<String> = query_tasks(connection, &projected_queue_sql, [])?
@@ -389,13 +435,255 @@ pub(super) fn verify_integrity_in(connection: &Connection) -> Result<IntegrityRe
         receipt_links,
         task_reward_net_values,
         task_projection_matches_ledger,
+        task_hierarchy_valid,
         failures,
     })
+}
+
+fn verify_cascade_completion_links(
+    connection: &Connection,
+    failures: &mut Vec<String>,
+) -> Result<bool, LedgerError> {
+    let failure_count_before = failures.len();
+    let events_sql = format!("{EVENT_SELECT} ORDER BY sequence ASC");
+    let events = query_events(connection, &events_sql, [])?;
+    let events_by_id: HashMap<&str, &TaskEvent> = events
+        .iter()
+        .map(|event| (event.id.as_str(), event))
+        .collect();
+    let receipts = {
+        let mut statement = connection
+            .prepare("SELECT command_id, command_type FROM command_receipts")
+            .map_err(|error| storage_error("准备级联完成回执校验失败", error))?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|error| storage_error("读取级联完成回执校验数据失败", error))?;
+        rows.collect::<Result<HashMap<_, _>, _>>()
+            .map_err(|error| storage_error("解析级联完成回执校验数据失败", error))?
+    };
+    let mut child_event_ids_by_parent_event = HashMap::<String, Vec<String>>::new();
+
+    for event in &events {
+        let metadata = event.metadata.as_object();
+        let has_cascade_metadata = metadata.is_some_and(|metadata| {
+            metadata.contains_key("cascadeParentEventId")
+                || metadata.contains_key("cascadeCommandId")
+        });
+        let has_cascade_command = event.command_id.starts_with("cascade/");
+        if !has_cascade_metadata && !has_cascade_command {
+            continue;
+        }
+
+        let metadata_is_exact = metadata.is_some_and(|metadata| {
+            metadata.len() == 4
+                && metadata.contains_key("parentTaskId")
+                && metadata.contains_key("parentTitle")
+                && metadata.contains_key("cascadeParentEventId")
+                && metadata.contains_key("cascadeCommandId")
+        });
+        if event.event_type != TaskEventType::SubtaskCompleted
+            || event.command_id != format!("cascade/{}", event.id)
+            || !metadata_is_exact
+        {
+            failures.push(format!(
+                "级联子代办完成事件 {} 的类型、内部命令或 metadata 形态无效",
+                event.id
+            ));
+            continue;
+        }
+
+        let metadata = metadata.expect("前置校验已确认 metadata 为对象");
+        let parent_task_id = metadata
+            .get("parentTaskId")
+            .and_then(|value| value.as_str());
+        let parent_event_id = metadata
+            .get("cascadeParentEventId")
+            .and_then(|value| value.as_str());
+        let cascade_command_id = metadata
+            .get("cascadeCommandId")
+            .and_then(|value| value.as_str());
+        let (Some(parent_task_id), Some(parent_event_id), Some(cascade_command_id)) =
+            (parent_task_id, parent_event_id, cascade_command_id)
+        else {
+            failures.push(format!(
+                "级联子代办完成事件 {} 的父任务、父事件或主命令关联缺失",
+                event.id
+            ));
+            continue;
+        };
+        child_event_ids_by_parent_event
+            .entry(parent_event_id.to_string())
+            .or_default()
+            .push(event.id.clone());
+
+        let command_is_valid = matches!(
+            normalize_command_id(cascade_command_id),
+            Ok(ref normalized) if normalized == cascade_command_id
+        );
+        let parent_event_is_valid = events_by_id.get(parent_event_id).is_some_and(|parent| {
+            parent.event_type == TaskEventType::Completed
+                && parent.task_id == parent_task_id
+                && parent.command_id == cascade_command_id
+                && parent.occurred_at_ms == event.occurred_at_ms
+                && matches!(
+                    (event.sequence, parent.sequence),
+                    (Some(child_sequence), Some(parent_sequence))
+                        if child_sequence < parent_sequence
+                )
+        });
+        let receipt_is_valid = receipts
+            .get(cascade_command_id)
+            .is_some_and(|command_type| command_type == "complete_task")
+            && !receipts.contains_key(&event.command_id);
+        if !command_is_valid || !parent_event_is_valid || !receipt_is_valid {
+            failures.push(format!(
+                "级联子代办完成事件 {} 未正确关联唯一的父完成事件与主命令回执",
+                event.id
+            ));
+        }
+    }
+
+    for event in events
+        .iter()
+        .filter(|event| event.event_type == TaskEventType::Completed)
+    {
+        let metadata = event.metadata.as_object();
+        let has_index_key =
+            metadata.is_some_and(|metadata| metadata.contains_key("cascadeSubtaskEventIds"));
+        let indexed_event_ids = metadata
+            .and_then(|metadata| metadata.get("cascadeSubtaskEventIds"))
+            .and_then(|value| value.as_array());
+        let linked_event_ids = child_event_ids_by_parent_event.get(&event.id);
+        match (has_index_key, indexed_event_ids, linked_event_ids) {
+            (false, None, None) => {}
+            (true, Some(indexed), Some(linked)) => {
+                let indexed: Option<Vec<&str>> =
+                    indexed.iter().map(|value| value.as_str()).collect();
+                let linked: Vec<&str> = linked.iter().map(String::as_str).collect();
+                let indexed_is_valid = indexed.as_ref().is_some_and(|indexed| {
+                    !indexed.is_empty()
+                        && indexed.iter().all(|event_id| !event_id.is_empty())
+                        && indexed.iter().copied().collect::<HashSet<_>>().len() == indexed.len()
+                });
+                let metadata_is_exact = metadata.is_some_and(|metadata| metadata.len() == 1);
+                if !metadata_is_exact
+                    || !indexed_is_valid
+                    || indexed.as_deref() != Some(linked.as_slice())
+                {
+                    failures.push(format!(
+                        "父完成事件 {} 的级联子事件索引与实际伴随事件不一致",
+                        event.id
+                    ));
+                }
+            }
+            _ => failures.push(format!(
+                "父完成事件 {} 与级联子完成事件缺少双向索引",
+                event.id
+            )),
+        }
+    }
+
+    Ok(failures.len() == failure_count_before)
+}
+
+fn verify_task_hierarchy(
+    tasks: &[crate::ledger::domain::Task],
+    failures: &mut Vec<String>,
+) -> bool {
+    let failure_count_before = failures.len();
+    let by_id: HashMap<&str, &crate::ledger::domain::Task> =
+        tasks.iter().map(|task| (task.id.as_str(), task)).collect();
+    let mut positions_by_parent = HashMap::<&str, Vec<i64>>::new();
+
+    for task in tasks {
+        match task.parent_task_id.as_deref() {
+            None => {
+                if task.sibling_position.is_some() {
+                    failures.push(format!("顶层任务 {} 不应携带同级位置", task.id));
+                }
+            }
+            Some(parent_task_id) => {
+                let shape_is_valid = task.queue_position.is_none()
+                    && task.defer_until_ms.is_none()
+                    && task.deadline_on.is_none()
+                    && task.block_reason.is_none()
+                    && matches!(task.sibling_position, Some(position) if position > 0)
+                    && matches!(
+                        task.status,
+                        TaskStatus::Pending | TaskStatus::Completed | TaskStatus::Abandoned
+                    );
+                if !shape_is_valid {
+                    failures.push(format!("子代办 {} 的任务投影形态无效", task.id));
+                }
+                match by_id.get(parent_task_id) {
+                    Some(parent)
+                        if parent.id != task.id
+                            && parent.parent_task_id.is_none()
+                            && parent.sibling_position.is_none() => {}
+                    Some(_) => failures.push(format!(
+                        "子代办 {} 的父项 {} 不是有效顶层代办",
+                        task.id, parent_task_id
+                    )),
+                    None => failures.push(format!(
+                        "子代办 {} 指向不存在的父项 {}",
+                        task.id, parent_task_id
+                    )),
+                }
+                if let Some(position) = task.sibling_position {
+                    positions_by_parent
+                        .entry(parent_task_id)
+                        .or_default()
+                        .push(position);
+                }
+            }
+        }
+    }
+
+    for (parent_task_id, positions) in &mut positions_by_parent {
+        positions.sort_unstable();
+        let expected: Vec<i64> = (1..=positions.len() as i64).collect();
+        if *positions != expected {
+            failures.push(format!(
+                "父代办 {} 的子代办位置不连续或重复：{:?}",
+                parent_task_id, positions
+            ));
+        }
+    }
+
+    for parent in tasks
+        .iter()
+        .filter(|task| task.parent_task_id.is_none() && task.status == TaskStatus::Completed)
+    {
+        let incomplete_children: Vec<&str> = tasks
+            .iter()
+            .filter(|task| {
+                task.parent_task_id.as_deref() == Some(parent.id.as_str())
+                    && !matches!(task.status, TaskStatus::Completed | TaskStatus::Abandoned)
+            })
+            .map(|task| task.id.as_str())
+            .collect();
+        if !incomplete_children.is_empty() {
+            failures.push(format!(
+                "已完成父代办 {} 仍有未完成子代办 {:?}",
+                parent.id, incomplete_children
+            ));
+        }
+    }
+
+    failures.len() == failure_count_before
 }
 
 fn replay_queue_history(connection: &Connection) -> Result<QueueReplay, LedgerError> {
     let events_sql = format!("{EVENT_SELECT} ORDER BY sequence ASC");
     let events = query_events(connection, &events_sql, [])?;
+    let tasks_sql = format!("{TASK_SELECT} ORDER BY id ASC");
+    let task_parent_by_id: HashMap<String, Option<String>> =
+        query_tasks(connection, &tasks_sql, [])?
+            .into_iter()
+            .map(|task| (task.id, task.parent_task_id))
+            .collect();
     let mut queue = Vec::<String>::new();
     let mut current_task_id_by_sequence = HashMap::new();
     let mut titles_by_task_id = HashMap::new();
@@ -406,6 +694,17 @@ fn replay_queue_history(connection: &Connection) -> Result<QueueReplay, LedgerEr
         let sequence = event.sequence.ok_or_else(|| {
             LedgerError::integrity(format!("任务事件 {} 缺少持久化序号", event.id))
         })?;
+        let is_subtask = task_parent_by_id
+            .get(&event.task_id)
+            .is_some_and(Option::is_some);
+        validate_parent_metadata(
+            &event,
+            task_parent_by_id
+                .get(&event.task_id)
+                .and_then(Option::as_deref),
+            &titles_by_task_id,
+            &mut failures,
+        );
         apply_title_history(&event, &mut titles_by_task_id, &mut failures);
         apply_deadline_history(&event, &mut deadlines_by_task_id, &mut failures);
         match event.event_type {
@@ -414,7 +713,13 @@ fn replay_queue_history(connection: &Connection) -> Result<QueueReplay, LedgerEr
             | TaskEventType::DueRecovered
             | TaskEventType::Recovered
             | TaskEventType::Reopened => {
-                if queue.iter().any(|task_id| task_id == &event.task_id) {
+                if is_subtask {
+                    failures.push(format!(
+                        "子代办事件 {} 错误使用了顶层事件类型 {}",
+                        event.id,
+                        event.event_type.as_storage()
+                    ));
+                } else if queue.iter().any(|task_id| task_id == &event.task_id) {
                     failures.push(format!(
                         "任务事件 {}（{}）尝试重复入队任务 {}",
                         event.id,
@@ -429,7 +734,17 @@ fn replay_queue_history(connection: &Connection) -> Result<QueueReplay, LedgerEr
             | TaskEventType::Deferred
             | TaskEventType::Blocked
             | TaskEventType::Abandoned => {
-                if let Some(index) = queue.iter().position(|task_id| task_id == &event.task_id) {
+                if is_subtask {
+                    if event.event_type != TaskEventType::Abandoned {
+                        failures.push(format!(
+                            "子代办事件 {} 错误使用了顶层事件类型 {}",
+                            event.id,
+                            event.event_type.as_storage()
+                        ));
+                    }
+                } else if let Some(index) =
+                    queue.iter().position(|task_id| task_id == &event.task_id)
+                {
                     queue.remove(index);
                 } else {
                     failures.push(format!(
@@ -443,8 +758,22 @@ fn replay_queue_history(connection: &Connection) -> Result<QueueReplay, LedgerEr
             TaskEventType::QueueReordered => {
                 apply_queue_reorder(&event, &mut queue, &mut failures);
             }
+            TaskEventType::SubtaskCreated
+            | TaskEventType::SubtaskCompleted
+            | TaskEventType::SubtaskCompletionUndone
+            | TaskEventType::SubtasksReordered => {
+                if !is_subtask {
+                    failures.push(format!(
+                        "顶层任务事件 {} 错误使用了子代办事件类型 {}",
+                        event.id,
+                        event.event_type.as_storage()
+                    ));
+                }
+            }
             TaskEventType::TitleUpdated | TaskEventType::DeadlineUpdated => {
-                if !queue.iter().any(|task_id| task_id == &event.task_id) {
+                if event.event_type == TaskEventType::DeadlineUpdated && is_subtask {
+                    failures.push(format!("子代办事件 {} 不应修改期限", event.id));
+                } else if !is_subtask && !queue.iter().any(|task_id| task_id == &event.task_id) {
                     failures.push(format!(
                         "任务属性修改事件 {} 尝试修改不在即时待办队列中的任务 {}",
                         event.id, event.task_id
@@ -464,12 +793,51 @@ fn replay_queue_history(connection: &Connection) -> Result<QueueReplay, LedgerEr
     })
 }
 
+fn validate_parent_metadata(
+    event: &TaskEvent,
+    parent_task_id: Option<&str>,
+    titles_by_task_id: &HashMap<String, String>,
+    failures: &mut Vec<String>,
+) {
+    let Some(parent_task_id) = parent_task_id else {
+        return;
+    };
+    let recorded_parent_id = event
+        .metadata
+        .get("parentTaskId")
+        .and_then(|value| value.as_str());
+    let recorded_parent_title = event
+        .metadata
+        .get("parentTitle")
+        .and_then(|value| value.as_str());
+    if recorded_parent_id != Some(parent_task_id) {
+        failures.push(format!(
+            "子代办事件 {} 的 parentTaskId 与任务投影不一致",
+            event.id
+        ));
+    }
+    match titles_by_task_id.get(parent_task_id) {
+        Some(title) if recorded_parent_title == Some(title.as_str()) => {}
+        Some(title) => failures.push(format!(
+            "子代办事件 {} 的 parentTitle 与当时父标题不一致：历史为 {:?}，事件为 {:?}",
+            event.id, title, recorded_parent_title
+        )),
+        None => failures.push(format!(
+            "子代办事件 {} 发生在父代办 {} 创建之前",
+            event.id, parent_task_id
+        )),
+    }
+}
+
 fn apply_deadline_history(
     event: &TaskEvent,
     deadlines_by_task_id: &mut HashMap<String, Option<String>>,
     failures: &mut Vec<String>,
 ) {
-    if event.event_type == TaskEventType::Created {
+    if matches!(
+        event.event_type,
+        TaskEventType::Created | TaskEventType::SubtaskCreated
+    ) {
         if deadlines_by_task_id
             .insert(event.task_id.clone(), None)
             .is_some()
@@ -546,7 +914,10 @@ fn apply_title_history(
     titles_by_task_id: &mut HashMap<String, String>,
     failures: &mut Vec<String>,
 ) {
-    if event.event_type == TaskEventType::Created {
+    if matches!(
+        event.event_type,
+        TaskEventType::Created | TaskEventType::SubtaskCreated
+    ) {
         if titles_by_task_id.contains_key(&event.task_id) {
             failures.push(format!(
                 "任务事件 {} 尝试重复初始化任务 {} 的标题",

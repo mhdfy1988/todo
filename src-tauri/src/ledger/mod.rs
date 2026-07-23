@@ -52,6 +52,15 @@ impl LedgerState {
         self.with_service(|service| service.capture_task(operation_id, title))
     }
 
+    pub fn create_subtask(
+        &self,
+        operation_id: &str,
+        parent_task_id: &str,
+        title: &str,
+    ) -> Result<MutationReceipt, LedgerError> {
+        self.with_service(|service| service.create_subtask(operation_id, parent_task_id, title))
+    }
+
     pub fn complete_task(
         &self,
         operation_id: &str,
@@ -98,6 +107,25 @@ impl LedgerState {
         self.with_service(|service| {
             service.reorder_tasks(
                 operation_id,
+                moved_task_id,
+                expected_task_ids,
+                ordered_task_ids,
+            )
+        })
+    }
+
+    pub fn reorder_subtasks(
+        &self,
+        operation_id: &str,
+        parent_task_id: &str,
+        moved_task_id: &str,
+        expected_task_ids: &[String],
+        ordered_task_ids: &[String],
+    ) -> Result<MutationReceipt, LedgerError> {
+        self.with_service(|service| {
+            service.reorder_subtasks(
+                operation_id,
+                parent_task_id,
                 moved_task_id,
                 expected_task_ids,
                 ordered_task_ids,

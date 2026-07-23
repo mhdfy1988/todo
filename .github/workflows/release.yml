@@ -49,6 +49,11 @@ jobs:
       - name: 核对发布版本
         run: npm.cmd run release:version:check
 
+      - name: 读取标准更新日志
+        id: changelog
+        shell: pwsh
+        run: npm.cmd run release:changelog:github-output
+
       - name: 拒绝覆盖已发布版本
         shell: pwsh
         env:
@@ -84,11 +89,10 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 代办 v__VERSION__
-          releaseBody: |
-            Windows x64 安装包。首次安装请下载 setup.exe；后续版本可在应用内检查并安装更新。
+          releaseBody: ${{ steps.changelog.outputs.releaseBody }}
           releaseDraft: true
           prerelease: false
-          generateReleaseNotes: true
+          generateReleaseNotes: false
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
           uploadUpdaterSignatures: true
@@ -120,6 +124,20 @@ jobs:
           Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $downloadedInstaller
           if ((Get-FileHash -LiteralPath $downloadedInstaller -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $installers[0].FullName -Algorithm SHA256).Hash) {
             throw 'latest.json 指向的安装器与本次构建产物不一致'
+          }
+
+      - name: 核对草稿 Release 更新日志
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXPECTED_RELEASE_BODY: ${{ steps.changelog.outputs.releaseBody }}
+        run: |
+          $package = Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json
+          $release = gh api "repos/${{ github.repository }}/releases/tags/v$($package.version)" | ConvertFrom-Json
+          $expected = ($env:EXPECTED_RELEASE_BODY -replace "`r`n", "`n").Trim()
+          $actual = ($release.body -replace "`r`n", "`n").Trim()
+          if ($actual -ne $expected) {
+            throw '草稿 Release 正文与 CHANGELOG 当前版本段不一致'
           }
 
       - name: 发布已验证的 Release

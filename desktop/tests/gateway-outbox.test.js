@@ -63,6 +63,59 @@ test("操作箱接受完整且真实变位的重排命令", () => {
   assert.deepEqual(new LocalStorageOutboxStore(storage).load(), operation);
 });
 
+test("操作箱接受规范化的新增子代办与同组重排命令", () => {
+  const createOperation = {
+    ...pendingOperation("create-subtask-id"),
+    key: "create-subtask:parent-id:整理问题",
+    command: "create_subtask",
+    payload: { parentTaskId: "parent-id", title: "整理问题" },
+  };
+  const reorderSubtasksOperation = {
+    ...pendingOperation("reorder-subtasks-id"),
+    key: "reorder-subtasks:parent-id:child-b",
+    command: "reorder_subtasks",
+    payload: {
+      parentTaskId: "parent-id",
+      movedTaskId: "child-b",
+      expectedTaskIds: ["child-a", "child-b"],
+      orderedTaskIds: ["child-b", "child-a"],
+    },
+  };
+  for (const operation of [createOperation, reorderSubtasksOperation]) {
+    const storage = new FakeStorage({
+      [NORMAL_OUTBOX_KEY]: JSON.stringify(operation),
+    });
+    assert.deepEqual(new LocalStorageOutboxStore(storage).load(), operation);
+  }
+});
+
+test("操作箱拒绝缺少父项上下文或混入额外字段的子代办命令", () => {
+  for (const operation of [
+    {
+      ...pendingOperation("invalid-create-subtask"),
+      command: "create_subtask",
+      payload: { title: "整理问题" },
+    },
+    {
+      ...pendingOperation("invalid-reorder-subtasks"),
+      command: "reorder_subtasks",
+      payload: {
+        parentTaskId: "parent-id",
+        movedTaskId: "child-b",
+        expectedTaskIds: ["child-a", "child-b"],
+        orderedTaskIds: ["child-b", "child-a"],
+        legacyParentId: "parent-id",
+      },
+    },
+  ]) {
+    const storage = new FakeStorage({
+      [NORMAL_OUTBOX_KEY]: JSON.stringify(operation),
+    });
+    assert.throws(() => new LocalStorageOutboxStore(storage).load(), /待确认操作结构损坏/);
+    assert.equal(storage.removals, 0);
+  }
+});
+
 test("操作箱接受有效的删除命令", () => {
   const operation = {
     ...pendingOperation("delete-operation-id"),
@@ -225,6 +278,11 @@ test("TauriGateway 保持命令名和 camelCase payload 映射", async () => {
     payload: { title: "记录任务" },
   });
   await gateway.executeLedgerOperation({
+    ...pendingOperation("create-subtask-id"),
+    command: "create_subtask",
+    payload: { parentTaskId: "parent-id", title: "整理问题" },
+  });
+  await gateway.executeLedgerOperation({
     ...pendingOperation("complete-id"),
     command: "complete_task",
     payload: { taskId: "task-id" },
@@ -241,6 +299,16 @@ test("TauriGateway 保持命令名和 camelCase payload 映射", async () => {
       movedTaskId: "task-b",
       expectedTaskIds: ["task-a", "task-b", "task-c"],
       orderedTaskIds: ["task-b", "task-a", "task-c"],
+    },
+  });
+  await gateway.executeLedgerOperation({
+    ...pendingOperation("reorder-subtasks-id"),
+    command: "reorder_subtasks",
+    payload: {
+      parentTaskId: "parent-id",
+      movedTaskId: "child-b",
+      expectedTaskIds: ["child-a", "child-b"],
+      orderedTaskIds: ["child-b", "child-a"],
     },
   });
   await gateway.executeLedgerOperation({
@@ -270,6 +338,14 @@ test("TauriGateway 保持命令名和 camelCase payload 映射", async () => {
       payload: { title: "记录任务", operationId: "capture-id" },
     },
     {
+      command: "create_subtask",
+      payload: {
+        parentTaskId: "parent-id",
+        title: "整理问题",
+        operationId: "create-subtask-id",
+      },
+    },
+    {
       command: "complete_task",
       payload: { taskId: "task-id", operationId: "complete-id" },
     },
@@ -284,6 +360,16 @@ test("TauriGateway 保持命令名和 camelCase payload 映射", async () => {
         expectedTaskIds: ["task-a", "task-b", "task-c"],
         orderedTaskIds: ["task-b", "task-a", "task-c"],
         operationId: "reorder-id",
+      },
+    },
+    {
+      command: "reorder_subtasks",
+      payload: {
+        parentTaskId: "parent-id",
+        movedTaskId: "child-b",
+        expectedTaskIds: ["child-a", "child-b"],
+        orderedTaskIds: ["child-b", "child-a"],
+        operationId: "reorder-subtasks-id",
       },
     },
     {

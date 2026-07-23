@@ -1,6 +1,8 @@
 import {
   isSupportedLedgerCommand,
+  isValidCreateSubtaskPayload,
   isValidReorderPayload,
+  isValidReorderSubtasksPayload,
   isValidUpdateTaskDeadlinePayload,
   isValidUpdateTaskTitlePayload,
   LedgerCommand,
@@ -31,11 +33,15 @@ function isValidCommandPayload(command, payload) {
   switch (command) {
     case LedgerCommand.CAPTURE:
       return typeof payload.title === "string" && payload.title.trim().length > 0;
+    case LedgerCommand.CREATE_SUBTASK:
+      return isValidCreateSubtaskPayload(payload);
     case LedgerCommand.COMPLETE:
     case LedgerCommand.DELETE:
       return typeof payload.taskId === "string" && payload.taskId.length > 0;
     case LedgerCommand.REORDER_TASKS:
       return isValidReorderPayload(payload);
+    case LedgerCommand.REORDER_SUBTASKS:
+      return isValidReorderSubtasksPayload(payload);
     case LedgerCommand.UPDATE_DEADLINE:
       return isValidUpdateTaskDeadlinePayload(payload);
     case LedgerCommand.UPDATE_TITLE:

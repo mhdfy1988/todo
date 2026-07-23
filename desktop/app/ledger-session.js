@@ -4,7 +4,9 @@ import {
   LedgerPhase,
 } from "./state.js";
 import {
+  assertCreateSubtaskPayload,
   assertReorderPayload,
+  assertReorderSubtasksPayload,
   assertLedgerSnapshot,
   assertTaskId,
   assertUpdateTaskDeadlinePayload,
@@ -110,6 +112,18 @@ export class LedgerSession {
     });
   }
 
+  /** @param {string} parentTaskId @param {string} title */
+  createSubtask(parentTaskId, title) {
+    const normalizedTitle = normalizeTaskTitle(title);
+    const payload = { parentTaskId, title: normalizedTitle };
+    assertCreateSubtaskPayload(payload);
+    return this.#runMutation({
+      key: `create-subtask:${parentTaskId}:${normalizedTitle}`,
+      command: LedgerCommand.CREATE_SUBTASK,
+      payload,
+    });
+  }
+
   /** @param {string} taskId */
   completeTask(taskId) {
     assertTaskId(taskId, "待完成任务");
@@ -168,6 +182,27 @@ export class LedgerSession {
         expectedTaskIds: [...expectedTaskIds],
         orderedTaskIds: [...orderedTaskIds],
       },
+    });
+  }
+
+  /**
+   * @param {string} parentTaskId
+   * @param {string} movedTaskId
+   * @param {string[]} expectedTaskIds
+   * @param {string[]} orderedTaskIds
+   */
+  reorderSubtasks(parentTaskId, movedTaskId, expectedTaskIds, orderedTaskIds) {
+    const payload = {
+      parentTaskId,
+      movedTaskId,
+      expectedTaskIds: [...expectedTaskIds],
+      orderedTaskIds: [...orderedTaskIds],
+    };
+    assertReorderSubtasksPayload(payload);
+    return this.#runMutation({
+      key: `reorder-subtasks:${parentTaskId}:${movedTaskId}`,
+      command: LedgerCommand.REORDER_SUBTASKS,
+      payload,
     });
   }
 

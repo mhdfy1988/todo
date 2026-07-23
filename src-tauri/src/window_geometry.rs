@@ -117,6 +117,14 @@ pub fn bottom_right(size: Size, area: WorkArea) -> Point {
     )
 }
 
+pub fn bottom_right_in_selected_work_area(
+    restored_position: Point,
+    size: Size,
+    areas: &[WorkArea],
+) -> Option<Point> {
+    select_work_area(restored_position, size, areas).map(|area| bottom_right(size, area))
+}
+
 pub fn resize_preserving_nearest_edges(
     old_position: Point,
     old_size: Size,
@@ -170,6 +178,40 @@ mod tests {
             PRIMARY,
         );
         assert_eq!(point, Point { x: 1598, y: 936 });
+    }
+
+    #[test]
+    fn startup_capsule_does_not_reuse_expanded_window_top_left() {
+        let capsule = Size {
+            width: 310,
+            height: 92,
+        };
+        let expanded_top_left = Point { x: 1488, y: 508 };
+
+        assert_eq!(
+            bottom_right_in_selected_work_area(expanded_top_left, capsule, &[PRIMARY]),
+            Some(Point { x: 1598, y: 936 })
+        );
+    }
+
+    #[test]
+    fn startup_capsule_keeps_the_monitor_selected_by_the_saved_position() {
+        let left = WorkArea {
+            x: -1600,
+            y: 0,
+            width: 1600,
+            height: 860,
+        };
+        let capsule = Size {
+            width: 310,
+            height: 92,
+        };
+        let saved_on_left = Point { x: -1450, y: 400 };
+
+        assert_eq!(
+            bottom_right_in_selected_work_area(saved_on_left, capsule, &[PRIMARY, left]),
+            Some(Point { x: -322, y: 756 })
+        );
     }
 
     #[test]

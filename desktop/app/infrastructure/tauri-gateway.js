@@ -84,6 +84,12 @@ export class TauriGateway {
           title: operation.payload.title,
           operationId,
         });
+      case LedgerCommand.CREATE_SUBTASK:
+        return this.call("create_subtask", {
+          parentTaskId: operation.payload.parentTaskId,
+          title: operation.payload.title,
+          operationId,
+        });
       case LedgerCommand.COMPLETE:
         return this.call("complete_task", {
           taskId: operation.payload.taskId,
@@ -96,6 +102,14 @@ export class TauriGateway {
         });
       case LedgerCommand.REORDER_TASKS:
         return this.call("reorder_tasks", {
+          movedTaskId: operation.payload.movedTaskId,
+          expectedTaskIds: operation.payload.expectedTaskIds,
+          orderedTaskIds: operation.payload.orderedTaskIds,
+          operationId,
+        });
+      case LedgerCommand.REORDER_SUBTASKS:
+        return this.call("reorder_subtasks", {
+          parentTaskId: operation.payload.parentTaskId,
           movedTaskId: operation.payload.movedTaskId,
           expectedTaskIds: operation.payload.expectedTaskIds,
           orderedTaskIds: operation.payload.orderedTaskIds,

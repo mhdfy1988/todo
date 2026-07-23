@@ -1,4 +1,4 @@
-# 代办当前阶段 Todo：统一待办列表与真实试用反馈
+# 代办当前阶段 Todo：一级子代办正式实现
 
 ## 当前任务列表（实时）
 - [x] LIST-1 冻结统一列表、任意完成与重排契约
@@ -18,14 +18,46 @@
 - [x] FEEDBACK-11 移除托盘图标白色底板并验证透明小图标
 - [x] FEEDBACK-12 增加待办与完成记录的当前页面搜索
 - [x] FEEDBACK-13 增加“复制本周完成”的最小周回顾出口
-- [ ] RELEASE-0.1.1 发布候选并完成 `0.1.0 → 0.1.1` 应用内升级实测
+- [x] SUBTASK-1 冻结一级子代办领域、交互与兼容契约
+- [x] SUBTASK-2 完成 SQLite v5 迁移、领域状态与完整性校验
+- [x] SUBTASK-3 接通 Rust 应用服务、Tauri IPC、幂等与操作箱协议
+- [x] SUBTASK-4 实现主列表中的添加、修改、删除、完成、撤销与同组重排
+- [x] SUBTASK-5 实现搜索上下文、完成记录折叠、周回顾与桌面胶囊联动
+- [x] SUBTASK-6 完成迁移回归、前后端门禁、真实桌面冒烟与文档同步
+- [x] PACKAGE-0.1.2 生成隔离的 Windows 测试安装包并核对版本、身份和产物
+- [x] SUBTASK-FEEDBACK-1 子代办新增与修改在失焦时保存，并在新增后恢复“添加子代办”入口
+- [x] SUBTASK-FEEDBACK-2 父项勾选时以单事务自动完成全部未完成子项与父项
+- [x] SUBTASK-FEEDBACK-3 完成跨层回归、文档同步并重打隔离测试包
+- [x] WINDOW-FEEDBACK-1 修复展开态退出后，冷启动胶囊误用大窗口左上角坐标
+- [ ] RELEASE-0.1.2 收口版本文档、推送 main 并完成正式 GitHub Release
 
 ## 当前指针
-- 阶段状态：LIST-1 至 LIST-4、FEEDBACK-1 至 FEEDBACK-12 已完成源码、自动验证、正式构建和实机验收；FEEDBACK-13 源码与定向验证已完成
-- 当前结果：完成记录页新增克制的“复制本周”入口，读取本地自然周内仍然有效的完成事实并复制 Markdown；空周不覆盖剪贴板，不新增任务状态、数据库迁移或 IPC 写命令
-- 下一项：完成 `v0.1.1` 全量发布门禁与公网发布，再从当前已安装的 `v0.1.0` 由用户点击执行应用内更新，核对版本、新功能和真实数据保留
+- 阶段状态：一级子代办、schema v5 与启动位置修复已经完成本地验收；`0.1.2` 版本内容已冻结
+- 当前正在做：把 CHANGELOG 收口到实际发布日期，重新运行正式发布门禁，随后提交、推送并触发 GitHub Release 签名闭环
+- 完成后下一项：从当前已安装的 `v0.1.1` 发起 `v0.1.2` 应用内更新，核对重启、schema v4→v5 迁移前备份和原有数据
+- 本轮之外：应用内版本间升级实测与升级后的日常手感复核不阻断公开发布，但必须在发布后继续完成
 
 ## 后续记录（追加）
+- 子代办初版曾采用逐项确认后再完成父项；该冻结口径已被 `SUBTASK-FEEDBACK-2` 取代。继续保持只支持一级、子项不进入全局队列且不单独奖励金币、正式实现只改本地且不替换已安装版本
+- SUBTASK-1 完成：设计文档状态已改为“产品与实现契约已冻结”，补齐 schema v5、快照增量、camelCase 字段、两条新命令、事件 metadata 与稳定错误码口径；三个实现边界已核对，未创建第二套队列或兼容回退
+- SUBTASK-2 初版完成：schema v5、v1/v2/v3/v4→v5 迁移、层级投影、队列隔离和子项零奖励已落盘；当时父完成采用拒绝策略，现已由单事务级联和新的完整性校验取代
+- SUBTASK-3 完成：`create_subtask` 与 `reorder_subtasks` 已贯通 TaskService、LedgerState、Tauri camelCase IPC、稳定请求指纹、幂等回执和前端操作箱；真实 Tauri mock IPC 契约通过
+- SUBTASK-4 初版完成：主列表采用一级渐进展开并支持行内改名、软删除、逐项完成与撤销、拖动及 `Alt + ↑/↓` 同组重排；当时的连续输入框和父复选框复位逻辑已由单次添加与后端级联取代
+- SUBTASK-5 完成：搜索结果保留父项上下文，完成记录按父组默认折叠，胶囊显示当前子动作和组进度；周回顾在父项本周完成时可带入更早完成的有效子项；所有完成投影改用不受审计事件 100 条截断影响的 `effectiveCompletions`
+- SUBTASK-6 初版验证：前端 143/143、Rust 63/63、格式、Clippy、独立账本 smoke 与真实 Tauri 桌面联合 smoke 当时全部通过；该结果已被本次反馈后的新门禁与新构建取代
+- 并发边界：新增子项与父完成、撤销子项与父完成、子项重排与软删除三组竞争均按事务串行化为合法结果，重复并发回归通过，不依赖固定胜者或固定事件总数
+- 文档同步：README、架构、账本、界面、路线图与子代办完整设计均已同步 schema v5、完整投影、交互范围和“本地未发布”边界；真实日常窗口的人工手感复测仍作为下一步，不冒充自动化验收
+- 版本纠正：准备试装包时通过 GitHub Release 与 Windows 卸载注册信息确认 `v0.1.1` 已正式发布且当前已安装；此前本地文档的“仍未发布”口径已纠正，新候选的 package、npm lock、Cargo、Cargo lock 与 Tauri 五处版本事实统一提升到 `0.1.2`
+- PACKAGE-0.1.2 初次候选：新增 `tauri.candidate.conf.json`，以“代办测试版”及 `com.luoji.zuoban.spike.candidate` 隔离安装身份和数据目录；旧候选 SHA-256 为 `B0D5AF4F1E12E3F8CD0FD466D579BE10C5507927CE65CB90FA4895577369DAA7`，已被本次反馈后的重建产物取代，不再交付
+- 产物级修复：Windows GUI EXE 无控制台启动 `--smoke` 时，原 `println!` 写失败可能阻断 `app.exit`；改为忽略输出写入错误后，上一候选 release EXE 在无重定向下以 0 退出。该旧包已被本次反馈代码取代，不再作为可测试产物
+- SUBTASK-FEEDBACK-1 完成：非空新增输入按 `Enter` 或失焦只提交一次，空白失焦静默退出，成功后恢复底部“添加子代办”，失败保留草稿；子标题失焦保存。真实事件级回归已加入，前端 150/150 通过
+- SUBTASK-FEEDBACK-2 完成：父项一次 `complete_task` 在同一 `BEGIN IMMEDIATE` 内完成全部 pending 活动子项，再完成父项；子项零奖励，父项主事件最后写入并只产生 `+1` 与唯一外部回执。Rust 66/66、六个失败点回滚、并发、幂等和完整性篡改回归通过
+- 文档同步：README、交互说明、路线图、事件账本、架构说明、子代办专题和 Windows 发布说明已统一为单次添加、父项原子级联与 schema v5 不支持降级口径
+- SUBTASK-FEEDBACK-3 完成：统一门禁为前端与发布文档 155/155、Rust 66/66，格式检查、Clippy、桌面联合冒烟与 release EXE 冒烟通过；隔离 NSIS 安装器已于 2026-07-23 22:48:15 重建，路径为 `src-tauri/target/release/bundle/nsis/代办测试版_0.1.2_x64-setup.exe`，SHA-256 为 `999C49C867775E7EC1C08D695B7E961AF893E1F36755BBC178626F2D9BBF7166`，无 updater `.sig`、无 Authenticode，未安装、未提交、未发布
+- 发布日志标准化：根目录新增 Keep a Changelog 结构的 `CHANGELOG.md`，`0.1.2` 候选内容仍在 `Unreleased`；发布工作流改为要求实际日期版本段、只使用该段生成 Release 正文并在公开前回读核对。相同要求已写入全局 Codex 规则
+- WINDOW-FEEDBACK-1 根因与实现：窗口状态插件只保存原生左上角坐标，展开态退出后该坐标会被下一次固定的胶囊尺寸直接复用；现在旧坐标只用于选择上次所在或最近的现存工作区，再按胶囊尺寸归位到该工作区右下角，不增加模式猜测或旧链路回退
+- WINDOW-FEEDBACK-1 验证：新增 2 个位置算法回归，统一门禁为前端与发布文档 155/155、Rust 68/68，格式检查、Clippy、版本与 CHANGELOG 门禁通过；桌面联合冒烟连续运行两次均为 `passed=true` 与 `startsAtBottomRight=true`，第二次启动前的保存位置明确来自展开态
+- WINDOW-FEEDBACK-1 测试包：隔离 NSIS 安装器已于 2026-07-23 23:36:38 重建，路径为 `src-tauri/target/release/bundle/nsis/代办测试版_0.1.2_x64-setup.exe`，SHA-256 为 `CFFC4F4C985AADA27F7DF5A0CAAC7A46174CC4935C58475FFC1F973AACF10474`；release EXE 联合冒烟通过且退出码为 0，安装器无 updater `.sig`、无 Authenticode，未安装、未提交、未发布；上一候选哈希 `999C49C867775E7EC1C08D695B7E961AF893E1F36755BBC178626F2D9BBF7166` 已失效
 - 初始化：用户根据当前生产界面截图提出界面杂乱、提示过多、内容拥挤
 - 范围：本轮先做界面减法，不扩展宠物、AI、日历或新的任务状态命令
 - UI-1 完成：展开态只保留快速记录、当前任务、接下来和完成记录入口；完成记录改为独立页
@@ -62,7 +94,7 @@
 - FEEDBACK-5 展示口径：期限标签使用今天、明天、`M/D`、跨年 `YYYY/M/D` 或“逾期 N 天”；逾期与午夜刷新只由前端派生，不写领域事件
 - FEEDBACK-5 边界：期限独立于 `deferUntil`，不自动排序、隐藏、提醒、通知、同步日历或产生奖惩；完成、撤销完成和删除保留字段
 - FEEDBACK-5 账本：`update_task_deadline({ operationId, taskId, deadlineOn })` 只接受当前可见的立即待办；`null` 清除，同值拒绝；追加 `deadline_updated`，metadata 保存 `beforeDeadlineOn` / `afterDeadlineOn`
-- FEEDBACK-5 数据升级：当前源码 schema 为 v4；v1、v2、v3 按级迁移到 v4，磁盘旧库迁移前生成并验证 before-v4 一致性备份
+- FEEDBACK-5 当时的数据升级：该阶段源码为 schema v4；v1、v2、v3 按级迁移到 v4，磁盘旧库迁移前生成并验证 before-v4 一致性备份
 - FEEDBACK-5 验证：前端 79/79、Rust 48/48；独立账本冒烟与桌面联合冒烟均为 `passed=true`，联合冒烟验证 `updatedPendingTaskDeadline=true`、`eventCountAfterDelete=9`
 - FEEDBACK-5 迁移验证：v1、v2、v3 → v4 的合成磁盘样本迁移与迁移前一致性备份均通过；正式数据只读完整性核对通过，`quick_check`、外键、迁移版本和 `deadline_updated` 约束均正常
 - FEEDBACK-5 发布：版本 `0.1.0` 的构建与发布门禁通过；本机进程、构建大小和历史哈希不作为公开源码契约
@@ -112,4 +144,4 @@
 - FEEDBACK-13 定向验证：新增自然周、跨月跨年、Markdown、成功、空周、写入失败、坏 IPC、剪贴板转发和能力缺失测试；周完成与 DOM 定向契约 13/13、前端完整门禁 120/120、Rust debug/release 51/51、格式检查、Clippy 与 `cargo check --locked` 均通过
 - FEEDBACK-13 可靠性复核：复制按钮已纳入 `LedgerView` 的统一 `READY + 无 pendingOperation` 禁用口径，账本加载、写入、恢复或错误期间不能并发导出不确定事实
 - FEEDBACK-13 冒烟与构建：独立账本冒烟和 debug/release 桌面联合冒烟均为 `passed=true`；release EXE 的 FileVersion/ProductVersion 为 `0.1.1`，FileDescription/ProductName 为“代办”
-- RELEASE-0.1.1 当前状态：五处版本事实已统一为 `0.1.1`，`release:version:check` 通过；公开 Latest 仍为 `v0.1.0`，不得提前记录发布或版本间升级完成
+- RELEASE-0.1.1 实际状态：`v0.1.1` 已于 2026-07-22 正式发布并成为当前用户安装基线；此前“仍未发布”的本地文档口径已在准备 `0.1.2` 测试包时纠正，是否通过应用内自动升级到该版本仍不由安装状态单独证明

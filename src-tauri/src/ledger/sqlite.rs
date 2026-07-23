@@ -1,8 +1,8 @@
 use super::{
     domain::{
-        Clock, IntegrityReport, LedgerError, LedgerMutation, LedgerSnapshot, MutationReceipt,
-        RewardMutation, RewardTransaction, RewardType, StoredReceipt, SystemClock, Task, TaskEvent,
-        TaskEventType, TaskStatus, TaskWrite, WeeklyFacts,
+        Clock, HierarchyPrecondition, IntegrityReport, LedgerError, LedgerMutation, LedgerSnapshot,
+        MutationReceipt, RewardMutation, RewardTransaction, RewardType, StoredReceipt, SystemClock,
+        Task, TaskEvent, TaskEventType, TaskStatus, TaskWrite, WeeklyFacts, COMPLETION_REWARD,
     },
     service::{stored_receipt_from_json, LedgerStore},
 };
@@ -20,11 +20,11 @@ mod schema;
 use integrity::verify_integrity_in;
 use schema::migrate;
 
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
-const TASK_SELECT: &str = "SELECT id, title, status, queue_position, defer_until_ms, deadline_on, \
-    block_reason, abandon_reason, completed_at_ms, active_completion_event_id, version, \
-    created_at_ms, updated_at_ms FROM tasks";
+const TASK_SELECT: &str = "SELECT id, title, status, parent_task_id, sibling_position, \
+    queue_position, defer_until_ms, deadline_on, block_reason, abandon_reason, completed_at_ms, \
+    active_completion_event_id, version, created_at_ms, updated_at_ms FROM tasks";
 const EVENT_SELECT: &str = "SELECT sequence, id, command_id, task_id, title_snapshot, \
     event_type, occurred_at_ms, reason, metadata_json, reverses_event_id FROM task_events";
 const REWARD_SELECT: &str = "SELECT sequence, id, task_event_id, reward_type, amount, \
@@ -32,7 +32,9 @@ const REWARD_SELECT: &str = "SELECT sequence, id, task_event_id, reward_type, am
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FailurePoint {
+    AfterFirstCompanionTaskWrite,
     AfterTaskWrite,
+    AfterFirstCompanionEventAppend,
     AfterEventAppend,
     AfterRewardAppend,
     BeforeCommit,
@@ -205,6 +207,14 @@ impl LedgerStore for SqliteLedgerStore {
             .map_err(|error| storage_error("读取任务失败", error))
     }
 
+    fn subtasks_for_parent(&self, parent_task_id: &str) -> Result<Vec<Task>, LedgerError> {
+        let sql = format!(
+            "{TASK_SELECT} WHERE parent_task_id = ?1 AND status IN ('pending', 'completed') \
+             ORDER BY sibling_position ASC, id ASC"
+        );
+        query_tasks(&self.connection, &sql, [parent_task_id])
+    }
+
     fn event_by_id(&self, event_id: &str) -> Result<Option<TaskEvent>, LedgerError> {
         let sql = format!("{EVENT_SELECT} WHERE id = ?1");
         self.connection
@@ -242,10 +252,23 @@ impl LedgerStore for SqliteLedgerStore {
         }
 
         validate_transition_preconditions(&transaction, &mutation)?;
+        for (index, companion) in mutation.companion_mutations.iter_mut().enumerate() {
+            materialize_queue_position(&transaction, &mut companion.task_write)?;
+            write_task(&transaction, &companion.task_write)?;
+            if index == 0 {
+                interrupt_if_needed(interruption, FailurePoint::AfterFirstCompanionTaskWrite)?;
+            }
+        }
         materialize_queue_position(&transaction, &mut mutation.task_write)?;
         write_task(&transaction, &mutation.task_write)?;
         interrupt_if_needed(interruption, FailurePoint::AfterTaskWrite)?;
 
+        for (index, companion) in mutation.companion_mutations.iter().enumerate() {
+            insert_event(&transaction, &companion.event)?;
+            if index == 0 {
+                interrupt_if_needed(interruption, FailurePoint::AfterFirstCompanionEventAppend)?;
+            }
+        }
         insert_event(&transaction, &mutation.event)?;
         interrupt_if_needed(interruption, FailurePoint::AfterEventAppend)?;
 
@@ -301,13 +324,29 @@ impl LedgerStore for SqliteLedgerStore {
             .transaction_with_behavior(TransactionBehavior::Deferred)
             .map_err(|error| storage_error("开始账本快照读事务失败", error))?;
         let completed_sql = format!(
-            "{TASK_SELECT} WHERE status = 'completed' ORDER BY completed_at_ms DESC, id ASC"
+            "{TASK_SELECT} WHERE status = 'completed' AND parent_task_id IS NULL \
+             ORDER BY completed_at_ms DESC, id ASC"
         );
+        let subtasks_sql = format!(
+            "{TASK_SELECT} WHERE parent_task_id IS NOT NULL \
+             AND status IN ('pending', 'completed') \
+             ORDER BY parent_task_id ASC, sibling_position ASC, id ASC"
+        );
+        let effective_completions_sql =
+            "SELECT event.sequence, event.id, event.command_id, event.task_id, \
+                    event.title_snapshot, event.event_type, event.occurred_at_ms, \
+                    event.reason, event.metadata_json, event.reverses_event_id \
+             FROM tasks AS task \
+             JOIN task_events AS event ON event.id = task.active_completion_event_id \
+             WHERE task.active_completion_event_id IS NOT NULL \
+             ORDER BY event.occurred_at_ms DESC, event.sequence DESC";
         let events_sql = format!("{EVENT_SELECT} ORDER BY sequence DESC LIMIT 100");
         let rewards_sql = format!("{REWARD_SELECT} ORDER BY sequence DESC LIMIT 100");
 
         let queue = queue_in(&transaction)?;
         let completed = query_tasks(&transaction, &completed_sql, [])?;
+        let subtasks = query_tasks(&transaction, &subtasks_sql, [])?;
+        let effective_completions = query_events(&transaction, effective_completions_sql, [])?;
         let events = query_events(&transaction, &events_sql, [])?;
         let rewards = query_rewards(&transaction, &rewards_sql, [])?;
         let snapshot = LedgerSnapshot {
@@ -315,6 +354,8 @@ impl LedgerStore for SqliteLedgerStore {
             current_task: current_task_in(&transaction)?,
             queue,
             completed,
+            subtasks,
+            effective_completions,
             events,
             rewards,
             balance: reward_balance_in(&transaction)?,
@@ -330,26 +371,42 @@ impl LedgerStore for SqliteLedgerStore {
             .connection
             .transaction_with_behavior(TransactionBehavior::Deferred)
             .map_err(|error| storage_error("开始周报事实读事务失败", error))?;
-        let completion_sql = format!(
-            "{EVENT_SELECT} AS event
-             WHERE event.event_type = 'completed'
-               AND event.occurred_at_ms >= ?1
-               AND event.occurred_at_ms < ?2
-               AND NOT EXISTS (
-                   SELECT 1 FROM task_events AS undo
-                   WHERE undo.event_type = 'completion_undone'
-                     AND undo.reverses_event_id = event.id
-               )
-             ORDER BY event.occurred_at_ms ASC, event.sequence ASC"
+        let completion_sql = "SELECT event.sequence, event.id, event.command_id, event.task_id, \
+                    event.title_snapshot, event.event_type, event.occurred_at_ms, \
+                    event.reason, event.metadata_json, event.reverses_event_id \
+             FROM tasks AS task \
+             JOIN task_events AS event ON event.id = task.active_completion_event_id \
+             LEFT JOIN tasks AS parent ON parent.id = task.parent_task_id \
+             LEFT JOIN task_events AS parent_completion \
+                    ON parent_completion.id = parent.active_completion_event_id \
+             WHERE (
+                 task.parent_task_id IS NULL
+                 AND event.event_type = 'completed'
+                 AND event.occurred_at_ms >= ?1
+                 AND event.occurred_at_ms < ?2
+             ) OR (
+                 task.parent_task_id IS NOT NULL
+                 AND event.event_type = 'subtask_completed'
+                 AND (
+                     (event.occurred_at_ms >= ?1 AND event.occurred_at_ms < ?2)
+                     OR (
+                         parent_completion.event_type = 'completed'
+                         AND parent_completion.occurred_at_ms >= ?1
+                         AND parent_completion.occurred_at_ms < ?2
+                     )
+                 )
+             )
+             ORDER BY event.occurred_at_ms ASC, event.sequence ASC";
+        let ongoing_sql = format!(
+            "{TASK_SELECT} WHERE status = 'pending' AND parent_task_id IS NULL \
+             ORDER BY queue_position ASC"
         );
-        let ongoing_sql =
-            format!("{TASK_SELECT} WHERE status = 'pending' ORDER BY queue_position ASC");
         let facts = WeeklyFacts {
             from_ms,
             to_ms,
             effective_completions: query_events(
                 &transaction,
-                &completion_sql,
+                completion_sql,
                 params![from_ms, to_ms],
             )?,
             ongoing_tasks: query_tasks(&transaction, &ongoing_sql, [])?,
@@ -379,14 +436,16 @@ fn write_task(transaction: &Transaction<'_>, write: &TaskWrite) -> Result<(), Le
             transaction
                 .execute(
                     "INSERT INTO tasks (
-                        id, title, status, queue_position, defer_until_ms, deadline_on,
-                        block_reason, abandon_reason, completed_at_ms, active_completion_event_id,
-                        version, created_at_ms, updated_at_ms
-                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                        id, title, status, parent_task_id, sibling_position, queue_position,
+                        defer_until_ms, deadline_on, block_reason, abandon_reason, completed_at_ms,
+                        active_completion_event_id, version, created_at_ms, updated_at_ms
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                     params![
                         task.id,
                         task.title,
                         task.status.as_storage(),
+                        task.parent_task_id,
+                        task.sibling_position,
                         task.queue_position,
                         task.defer_until_ms,
                         task.deadline_on,
@@ -396,7 +455,7 @@ fn write_task(transaction: &Transaction<'_>, write: &TaskWrite) -> Result<(), Le
                         task.active_completion_event_id,
                         task.version,
                         task.created_at_ms,
-                        task.updated_at_ms
+                        task.updated_at_ms,
                     ],
                 )
                 .map_err(|error| storage_error("新建任务快照失败", error))?;
@@ -409,15 +468,18 @@ fn write_task(transaction: &Transaction<'_>, write: &TaskWrite) -> Result<(), Le
             let changed = transaction
                 .execute(
                     "UPDATE tasks SET
-                        title = ?2, status = ?3, queue_position = ?4, defer_until_ms = ?5,
-                        deadline_on = ?6, block_reason = ?7, abandon_reason = ?8,
-                        completed_at_ms = ?9, active_completion_event_id = ?10, version = ?11,
-                        created_at_ms = ?12, updated_at_ms = ?13
-                     WHERE id = ?1 AND version = ?14",
+                        title = ?2, status = ?3, parent_task_id = ?4, sibling_position = ?5,
+                        queue_position = ?6, defer_until_ms = ?7, deadline_on = ?8,
+                        block_reason = ?9, abandon_reason = ?10, completed_at_ms = ?11,
+                        active_completion_event_id = ?12, version = ?13,
+                        created_at_ms = ?14, updated_at_ms = ?15
+                     WHERE id = ?1 AND version = ?16",
                     params![
                         task.id,
                         task.title,
                         task.status.as_storage(),
+                        task.parent_task_id,
+                        task.sibling_position,
                         task.queue_position,
                         task.defer_until_ms,
                         task.deadline_on,
@@ -449,6 +511,18 @@ fn write_task(transaction: &Transaction<'_>, write: &TaskWrite) -> Result<(), Le
             ordered_task_ids,
             *occurred_at_ms,
         )?,
+        TaskWrite::ReorderSubtasks {
+            parent_task_id,
+            expected_subtasks,
+            ordered_task_ids,
+            occurred_at_ms,
+        } => write_subtask_reorder(
+            transaction,
+            parent_task_id,
+            expected_subtasks,
+            ordered_task_ids,
+            *occurred_at_ms,
+        )?,
     }
     Ok(())
 }
@@ -461,7 +535,7 @@ fn write_queue_reorder(
 ) -> Result<(), LedgerError> {
     let max_position: i64 = transaction
         .query_row(
-            "SELECT COALESCE(MAX(queue_position), 0) FROM tasks",
+            "SELECT COALESCE(MAX(queue_position), 0) FROM tasks WHERE parent_task_id IS NULL",
             [],
             |row| row.get(0),
         )
@@ -473,7 +547,7 @@ fn write_queue_reorder(
     let shifted = transaction
         .execute(
             "UPDATE tasks SET queue_position = queue_position + ?1
-             WHERE status = 'pending' AND defer_until_ms IS NULL",
+             WHERE status = 'pending' AND defer_until_ms IS NULL AND parent_task_id IS NULL",
             [offset],
         )
         .map_err(|error| storage_error("移动队列到临时安全位置失败", error))?;
@@ -495,7 +569,8 @@ fn write_queue_reorder(
                     version = version + 1,
                     updated_at_ms = MAX(updated_at_ms, ?3)
                  WHERE id = ?1 AND version = ?4
-                   AND status = 'pending' AND defer_until_ms IS NULL",
+                   AND status = 'pending' AND defer_until_ms IS NULL
+                   AND parent_task_id IS NULL AND sibling_position IS NULL",
                 params![
                     task_id,
                     index as i64 + 1,
@@ -507,6 +582,74 @@ fn write_queue_reorder(
         if changed != 1 {
             return Err(LedgerError::concurrency_conflict(format!(
                 "任务 {task_id} 在调整顺序时已经变化"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn write_subtask_reorder(
+    transaction: &Transaction<'_>,
+    parent_task_id: &str,
+    expected_subtasks: &[crate::ledger::domain::SubtaskVersion],
+    ordered_task_ids: &[String],
+    occurred_at_ms: i64,
+) -> Result<(), LedgerError> {
+    let max_position: i64 = transaction
+        .query_row(
+            "SELECT COALESCE(MAX(sibling_position), 0) FROM tasks
+             WHERE parent_task_id = ?1",
+            [parent_task_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| storage_error("读取子代办最大位置失败", error))?;
+    let offset = max_position
+        .checked_add(expected_subtasks.len() as i64)
+        .and_then(|value| value.checked_add(1))
+        .ok_or_else(|| LedgerError::integrity("子代办临时位置计算溢出"))?;
+    let shifted = transaction
+        .execute(
+            "UPDATE tasks SET sibling_position = sibling_position + ?2
+             WHERE parent_task_id = ?1 AND status IN ('pending', 'completed')",
+            params![parent_task_id, offset],
+        )
+        .map_err(|error| storage_error("移动子代办到临时安全位置失败", error))?;
+    if shifted != expected_subtasks.len() {
+        return Err(LedgerError::concurrency_conflict(
+            "写入顺序前子代办集合已经变化",
+        ));
+    }
+
+    let mut target_positions: Vec<i64> = expected_subtasks
+        .iter()
+        .map(|item| item.expected_position)
+        .collect();
+    target_positions.sort_unstable();
+    for (index, task_id) in ordered_task_ids.iter().enumerate() {
+        let expected = expected_subtasks
+            .iter()
+            .find(|item| item.task_id == *task_id)
+            .ok_or_else(|| LedgerError::integrity("调整后顺序包含未知子代办"))?;
+        let changed = transaction
+            .execute(
+                "UPDATE tasks SET
+                    sibling_position = ?3,
+                    version = version + 1,
+                    updated_at_ms = MAX(updated_at_ms, ?4)
+                 WHERE id = ?1 AND parent_task_id = ?2 AND version = ?5
+                   AND status IN ('pending', 'completed')",
+                params![
+                    task_id,
+                    parent_task_id,
+                    target_positions[index],
+                    occurred_at_ms,
+                    expected.expected_version
+                ],
+            )
+            .map_err(|error| storage_error("写入新的子代办顺序失败", error))?;
+        if changed != 1 {
+            return Err(LedgerError::concurrency_conflict(format!(
+                "子代办 {task_id} 在调整顺序时已经变化"
             )));
         }
     }
@@ -575,7 +718,7 @@ fn materialize_queue_position(
             place_at_tail,
             ..
         } => (task, *place_at_tail),
-        TaskWrite::ReorderQueue { .. } => return Ok(()),
+        TaskWrite::ReorderQueue { .. } | TaskWrite::ReorderSubtasks { .. } => return Ok(()),
     };
     if !place_at_tail {
         return Ok(());
@@ -583,7 +726,23 @@ fn materialize_queue_position(
     if task.status != TaskStatus::Pending || task.defer_until_ms.is_some() {
         return Err(LedgerError::integrity("只有立即可执行的待办才能放入队尾"));
     }
-    task.queue_position = Some(next_queue_position_in(transaction)?);
+    match task.parent_task_id.as_deref() {
+        None => {
+            if task.sibling_position.is_some() {
+                return Err(LedgerError::integrity("顶层待办不能携带同级位置"));
+            }
+            task.queue_position = Some(next_queue_position_in(transaction)?);
+        }
+        Some(parent_task_id) => {
+            if task.queue_position.is_some()
+                || task.sibling_position.is_some()
+                || task.deadline_on.is_some()
+            {
+                return Err(LedgerError::integrity("新建子代办的位置或期限形态无效"));
+            }
+            task.sibling_position = Some(next_sibling_position_in(transaction, parent_task_id)?);
+        }
+    }
     Ok(())
 }
 
@@ -591,12 +750,15 @@ fn validate_transition_preconditions(
     transaction: &Transaction<'_>,
     mutation: &LedgerMutation,
 ) -> Result<(), LedgerError> {
+    validate_mutation_shape(mutation)?;
+    validate_hierarchy_preconditions(transaction, &mutation.hierarchy_preconditions)?;
     match &mutation.task_write {
         TaskWrite::Insert { task, .. } | TaskWrite::Update { task, .. } => {
-            if mutation.event.event_type == TaskEventType::QueueReordered {
-                return Err(LedgerError::integrity(
-                    "queue_reordered 事件必须使用队列重排写入",
-                ));
+            if matches!(
+                mutation.event.event_type,
+                TaskEventType::QueueReordered | TaskEventType::SubtasksReordered
+            ) {
+                return Err(LedgerError::integrity("重排事件必须使用对应的批量位置写入"));
             }
             if task.id != mutation.event.task_id {
                 return Err(LedgerError::integrity("任务写入与事件目标不一致"));
@@ -651,6 +813,299 @@ fn validate_transition_preconditions(
                 ));
             }
         }
+        TaskWrite::ReorderSubtasks {
+            parent_task_id,
+            expected_subtasks,
+            ordered_task_ids,
+            ..
+        } => {
+            if mutation.event.event_type != TaskEventType::SubtasksReordered {
+                return Err(LedgerError::integrity(
+                    "子代办重排写入缺少 subtasks_reordered 事件",
+                ));
+            }
+            let sql = format!(
+                "{TASK_SELECT} WHERE parent_task_id = ?1 \
+                 AND status IN ('pending', 'completed') \
+                 ORDER BY sibling_position ASC, id ASC"
+            );
+            let actual_subtasks = query_tasks(transaction, &sql, [parent_task_id])?;
+            let actual_facts: Vec<_> = actual_subtasks
+                .iter()
+                .map(|task| {
+                    (
+                        task.id.as_str(),
+                        task.version,
+                        task.sibling_position.unwrap_or_default(),
+                    )
+                })
+                .collect();
+            let expected_facts: Vec<_> = expected_subtasks
+                .iter()
+                .map(|task| {
+                    (
+                        task.task_id.as_str(),
+                        task.expected_version,
+                        task.expected_position,
+                    )
+                })
+                .collect();
+            if actual_facts != expected_facts {
+                return Err(LedgerError::concurrency_conflict(
+                    "子代办顺序或任务版本已经变化",
+                ));
+            }
+            let mut expected_ids: Vec<_> = expected_subtasks
+                .iter()
+                .map(|task| task.task_id.as_str())
+                .collect();
+            let mut ordered_ids: Vec<_> = ordered_task_ids.iter().map(String::as_str).collect();
+            expected_ids.sort_unstable();
+            ordered_ids.sort_unstable();
+            if expected_ids != ordered_ids {
+                return Err(LedgerError::integrity(
+                    "调整后顺序与已校验子代办不是同一任务集合",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_mutation_shape(mutation: &LedgerMutation) -> Result<(), LedgerError> {
+    if mutation.event.event_type != TaskEventType::Completed {
+        if !mutation.companion_mutations.is_empty() {
+            return Err(LedgerError::integrity(
+                "只有顶层父代办完成事件可以携带伴随写入",
+            ));
+        }
+        return Ok(());
+    }
+
+    let (expected_parent_version, parent_after, place_at_tail) = match &mutation.task_write {
+        TaskWrite::Update {
+            expected_version,
+            task,
+            place_at_tail,
+        } => (*expected_version, task, *place_at_tail),
+        _ => return Err(LedgerError::integrity("顶层完成事件必须对应单个父代办更新")),
+    };
+    let parent_shape_is_valid = parent_after.id == mutation.event.task_id
+        && parent_after.title == mutation.event.title_snapshot
+        && parent_after.parent_task_id.is_none()
+        && parent_after.sibling_position.is_none()
+        && parent_after.status == TaskStatus::Completed
+        && parent_after.queue_position.is_none()
+        && parent_after.defer_until_ms.is_none()
+        && parent_after.completed_at_ms == Some(mutation.event.occurred_at_ms)
+        && parent_after.active_completion_event_id.as_deref() == Some(mutation.event.id.as_str())
+        && parent_after.version == expected_parent_version + 1
+        && parent_after.updated_at_ms == mutation.event.occurred_at_ms
+        && mutation.event.sequence.is_none()
+        && mutation.event.reason.is_none()
+        && mutation.event.reverses_event_id.is_none()
+        && !place_at_tail;
+    if !parent_shape_is_valid {
+        return Err(LedgerError::integrity("顶层完成写入与主事件形态不一致"));
+    }
+    let reward_is_valid = mutation.reward.as_ref().is_some_and(|reward| {
+        reward.task_event_id == mutation.event.id
+            && reward.reward_type == RewardType::TaskCompletion
+            && reward.amount == COMPLETION_REWARD
+            && reward.occurred_at_ms == mutation.event.occurred_at_ms
+    });
+    if !reward_is_valid {
+        return Err(LedgerError::integrity(
+            "顶层完成事件必须且只能携带对应的完成奖励",
+        ));
+    }
+
+    let expected_subtasks = match mutation.hierarchy_preconditions.as_slice() {
+        [HierarchyPrecondition::SubtasksUnchanged {
+            parent_task_id,
+            expected_subtasks,
+        }] if parent_task_id == &parent_after.id => expected_subtasks,
+        _ => {
+            return Err(LedgerError::integrity(
+                "顶层完成事件必须携带唯一的子代办集合前置条件",
+            ))
+        }
+    };
+    let expected_pending: Vec<_> = expected_subtasks
+        .iter()
+        .filter(|subtask| subtask.expected_status == TaskStatus::Pending)
+        .collect();
+    if expected_pending.len() != mutation.companion_mutations.len() {
+        return Err(LedgerError::integrity(
+            "伴随完成写入没有覆盖全部待完成子代办",
+        ));
+    }
+
+    let mut seen_task_ids = std::collections::HashSet::new();
+    let mut seen_event_ids = std::collections::HashSet::new();
+    seen_event_ids.insert(mutation.event.id.as_str());
+    for (companion, expected) in mutation
+        .companion_mutations
+        .iter()
+        .zip(expected_pending.iter())
+    {
+        let (expected_version, child_after, place_at_tail) = match &companion.task_write {
+            TaskWrite::Update {
+                expected_version,
+                task,
+                place_at_tail,
+            } => (*expected_version, task, *place_at_tail),
+            _ => return Err(LedgerError::integrity("级联完成子代办只能使用单任务更新")),
+        };
+        let event = &companion.event;
+        let child_shape_is_valid = child_after.id == expected.task_id
+            && child_after.id == event.task_id
+            && child_after.title == event.title_snapshot
+            && child_after.parent_task_id.as_deref() == Some(parent_after.id.as_str())
+            && child_after.sibling_position == Some(expected.expected_position)
+            && child_after.status == TaskStatus::Completed
+            && child_after.queue_position.is_none()
+            && child_after.defer_until_ms.is_none()
+            && child_after.deadline_on.is_none()
+            && child_after.completed_at_ms == Some(mutation.event.occurred_at_ms)
+            && child_after.active_completion_event_id.as_deref() == Some(event.id.as_str())
+            && expected_version == expected.expected_version
+            && child_after.version == expected_version + 1
+            && child_after.updated_at_ms == mutation.event.occurred_at_ms
+            && !place_at_tail
+            && event.sequence.is_none()
+            && event.event_type == TaskEventType::SubtaskCompleted
+            && event.command_id == format!("cascade/{}", event.id)
+            && event.occurred_at_ms == mutation.event.occurred_at_ms
+            && event.reason.is_none()
+            && event.reverses_event_id.is_none()
+            && seen_task_ids.insert(event.task_id.as_str())
+            && seen_event_ids.insert(event.id.as_str());
+        if !child_shape_is_valid {
+            return Err(LedgerError::integrity(
+                "级联完成子代办的写入与事件形态不一致",
+            ));
+        }
+        let metadata_is_valid = event.metadata.as_object().is_some_and(|metadata| {
+            metadata.len() == 4
+                && metadata
+                    .get("parentTaskId")
+                    .and_then(|value| value.as_str())
+                    == Some(parent_after.id.as_str())
+                && metadata.get("parentTitle").and_then(|value| value.as_str())
+                    == Some(parent_after.title.as_str())
+                && metadata
+                    .get("cascadeParentEventId")
+                    .and_then(|value| value.as_str())
+                    == Some(mutation.event.id.as_str())
+                && metadata
+                    .get("cascadeCommandId")
+                    .and_then(|value| value.as_str())
+                    == Some(mutation.event.command_id.as_str())
+        });
+        if !metadata_is_valid {
+            return Err(LedgerError::integrity(
+                "级联完成子代办缺少有效的父事件关联元数据",
+            ));
+        }
+    }
+
+    let parent_metadata_is_valid = if mutation.companion_mutations.is_empty() {
+        mutation
+            .event
+            .metadata
+            .as_object()
+            .is_some_and(serde_json::Map::is_empty)
+    } else {
+        mutation.event.metadata.as_object().is_some_and(|metadata| {
+            metadata.len() == 1
+                && metadata
+                    .get("cascadeSubtaskEventIds")
+                    .and_then(|value| value.as_array())
+                    .is_some_and(|event_ids| {
+                        event_ids.len() == mutation.companion_mutations.len()
+                            && event_ids.iter().zip(&mutation.companion_mutations).all(
+                                |(event_id, companion)| {
+                                    event_id.as_str() == Some(companion.event.id.as_str())
+                                },
+                            )
+                    })
+        })
+    };
+    if !parent_metadata_is_valid {
+        return Err(LedgerError::integrity("父代办完成事件的级联子事件索引无效"));
+    }
+    Ok(())
+}
+
+fn validate_hierarchy_preconditions(
+    transaction: &Transaction<'_>,
+    preconditions: &[HierarchyPrecondition],
+) -> Result<(), LedgerError> {
+    for precondition in preconditions {
+        match precondition {
+            HierarchyPrecondition::ParentActive {
+                parent_task_id,
+                expected_parent_version,
+            } => {
+                let sql = format!("{TASK_SELECT} WHERE id = ?1");
+                let parent = transaction
+                    .query_row(&sql, [parent_task_id], map_task)
+                    .optional()
+                    .map_err(|error| storage_error("校验子代办父项失败", error))?;
+                let is_expected_parent = parent.as_ref().is_some_and(|parent| {
+                    parent.version == *expected_parent_version
+                        && parent.status == TaskStatus::Pending
+                        && parent.parent_task_id.is_none()
+                        && parent.sibling_position.is_none()
+                        && parent.queue_position.is_some()
+                        && parent.defer_until_ms.is_none()
+                });
+                if !is_expected_parent {
+                    return Err(LedgerError::concurrency_conflict(format!(
+                        "父代办 {parent_task_id} 已发生变化"
+                    )));
+                }
+            }
+            HierarchyPrecondition::SubtasksUnchanged {
+                parent_task_id,
+                expected_subtasks,
+            } => {
+                let sql = format!(
+                    "{TASK_SELECT} WHERE parent_task_id = ?1 \
+                     AND status IN ('pending', 'completed') \
+                     ORDER BY sibling_position ASC, id ASC"
+                );
+                let actual_subtasks = query_tasks(transaction, &sql, [parent_task_id])?;
+                let actual_facts: Vec<_> = actual_subtasks
+                    .iter()
+                    .map(|task| {
+                        (
+                            task.id.as_str(),
+                            task.version,
+                            task.sibling_position.unwrap_or_default(),
+                            task.status,
+                        )
+                    })
+                    .collect();
+                let expected_facts: Vec<_> = expected_subtasks
+                    .iter()
+                    .map(|task| {
+                        (
+                            task.task_id.as_str(),
+                            task.expected_version,
+                            task.expected_position,
+                            task.expected_status,
+                        )
+                    })
+                    .collect();
+                if actual_facts != expected_facts {
+                    return Err(LedgerError::concurrency_conflict(format!(
+                        "父代办 {parent_task_id} 的子代办集合、顺序或状态已经变化"
+                    )));
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -685,6 +1140,7 @@ fn replay_receipt_in(
 fn current_task_in(connection: &Connection) -> Result<Option<Task>, LedgerError> {
     let sql = format!(
         "{TASK_SELECT} WHERE status = 'pending' AND defer_until_ms IS NULL
+         AND parent_task_id IS NULL
          ORDER BY queue_position ASC LIMIT 1"
     );
     connection
@@ -696,6 +1152,7 @@ fn current_task_in(connection: &Connection) -> Result<Option<Task>, LedgerError>
 fn queue_in(connection: &Connection) -> Result<Vec<Task>, LedgerError> {
     let sql = format!(
         "{TASK_SELECT} WHERE status = 'pending' AND defer_until_ms IS NULL
+         AND parent_task_id IS NULL
          ORDER BY queue_position ASC"
     );
     query_tasks(connection, &sql, [])
@@ -704,11 +1161,26 @@ fn queue_in(connection: &Connection) -> Result<Vec<Task>, LedgerError> {
 fn next_queue_position_in(connection: &Connection) -> Result<i64, LedgerError> {
     connection
         .query_row(
-            "SELECT COALESCE(MAX(queue_position), 0) + 1 FROM tasks",
+            "SELECT COALESCE(MAX(queue_position), 0) + 1 FROM tasks
+             WHERE parent_task_id IS NULL",
             [],
             |row| row.get(0),
         )
         .map_err(|error| storage_error("计算任务队尾失败", error))
+}
+
+fn next_sibling_position_in(
+    connection: &Connection,
+    parent_task_id: &str,
+) -> Result<i64, LedgerError> {
+    connection
+        .query_row(
+            "SELECT COALESCE(MAX(sibling_position), 0) + 1 FROM tasks
+             WHERE parent_task_id = ?1",
+            [parent_task_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| storage_error("计算子代办队尾失败", error))
 }
 
 fn reward_balance_in(connection: &Connection) -> Result<i64, LedgerError> {
@@ -727,16 +1199,18 @@ fn map_task(row: &Row<'_>) -> rusqlite::Result<Task> {
         id: row.get(0)?,
         title: row.get(1)?,
         status,
-        queue_position: row.get(3)?,
-        defer_until_ms: row.get(4)?,
-        deadline_on: row.get(5)?,
-        block_reason: row.get(6)?,
-        abandon_reason: row.get(7)?,
-        completed_at_ms: row.get(8)?,
-        active_completion_event_id: row.get(9)?,
-        version: row.get(10)?,
-        created_at_ms: row.get(11)?,
-        updated_at_ms: row.get(12)?,
+        parent_task_id: row.get(3)?,
+        sibling_position: row.get(4)?,
+        queue_position: row.get(5)?,
+        defer_until_ms: row.get(6)?,
+        deadline_on: row.get(7)?,
+        block_reason: row.get(8)?,
+        abandon_reason: row.get(9)?,
+        completed_at_ms: row.get(10)?,
+        active_completion_event_id: row.get(11)?,
+        version: row.get(12)?,
+        created_at_ms: row.get(13)?,
+        updated_at_ms: row.get(14)?,
     })
 }
 

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>代办 · 子代办交互原型</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./prototype.js"></script>
+</head>
+<body>
+  <main class="prototype-shell">
+    <aside class="review-rail" aria-label="原型场景">
+      <div class="review-heading">
+        <span class="review-mark" aria-hidden="true"></span>
+        <span>INTERACTION DRAFT · 01</span>
+      </div>
+      <h1>子代办</h1>
+      <p class="review-intro">一级结构。常态只增加进度，不把添加、修改和说明文字挤进主列表。</p>
+
+      <nav class="scene-list" aria-label="切换原型场景">
+        <button type="button" class="scene-button is-active" data-scene="default">
+          <span>01</span><b>常态与展开</b><small>父任务、进度与子项</small>
+        </button>
+        <button type="button" class="scene-button" data-scene="add">
+          <span>02</span><b>添加与修改</b><small>首个子项、连续录入</small>
+        </button>
+        <button type="button" class="scene-button" data-scene="complete">
+          <span>03</span><b>父项完成</b><small>自动完成剩余子项</small>
+        </button>
+        <button type="button" class="scene-button" data-scene="delete">
+          <span>04</span><b>删除整个任务组</b><small>仅危险操作确认</small>
+        </button>
+        <button type="button" class="scene-button" data-scene="search">
+          <span>05</span><b>搜索上下文</b><small>命中子项仍保留父项</small>
+        </button>
+        <button type="button" class="scene-button" data-scene="history">
+          <span>06</span><b>完成记录</b><small>按父项归组、可撤销</small>
+        </button>
+        <button type="button" class="scene-button" data-scene="capsule">
+          <span>07</span><b>桌面胶囊</b><small>显示下一件真实动作</small>
+        </button>
+      </nav>
+
+      <div class="review-notes">
+        <p><kbd>双击</kbd> 或 <kbd>Enter</kbd> 修改标题，<kbd>Enter</kbd> / 失焦保存</p>
+        <p><kbd>Alt</kbd> + <kbd>↑/↓</kbd> 调整同级顺序</p>
+        <p>原型只使用当前页面内存，刷新即可复位。</p>
+      </div>
+    </aside>
+
+    <section class="prototype-stage" aria-label="子代办交互原型">
+      <div class="stage-caption">
+        <span>极简原生风 · 一级子代办</span>
+        <span class="safe-badge">演示数据</span>
+      </div>
+
+      <section id="appWindow" class="app-window" data-mode="expanded" data-panel="tasks">
+        <section class="expanded-surface" aria-label="展开任务面板">
+          <header class="window-bar">
+            <span class="brand-dot" aria-hidden="true"></span>
+            <strong>代办</strong>
+            <span class="window-actions">
+              <button id="capsuleAction" type="button" class="icon-button" aria-label="收起成当前任务胶囊">—</button>
+              <details id="moreMenu" class="more-menu">
+                <summary aria-label="更多操作">···</summary>
+                <div class="menu-popover">
+                  <button id="searchMenuAction" type="button" data-action="start-search">搜索待办</button>
+                  <button type="button" data-action="show-history">完成记录</button>
+                  <button type="button" disabled>隐藏到托盘</button>
+                </div>
+              </details>
+            </span>
+          </header>
+
+          <div class="panel-body">
+            <form id="searchForm" class="search-form" role="search" hidden>
+              <label id="searchLabel" class="sr-only" for="searchInput">搜索待办</label>
+              <input id="searchInput" type="search" placeholder="搜索待办" autocomplete="off">
+              <button type="button" data-action="cancel-search">取消</button>
+            </form>
+
+            <section id="tasksView" class="panel-view tasks-view" aria-label="待办">
+              <form id="captureForm" class="capture-form" autocomplete="off">
+                <label class="sr-only" for="captureInput">记一件事</label>
+                <input id="captureInput" maxlength="500" placeholder="记一件事">
+                <button type="submit">记下</button>
+              </form>
+
+              <ol id="taskList" class="task-list" aria-label="待办"></ol>
+
+              <button id="historyLink" type="button" class="history-link" data-action="show-history">
+                <span>完成记录</span>
+                <span><b id="historyCount">0</b><i aria-hidden="true">›</i></span>
+              </button>
+            </section>
+
+            <section id="historyView" class="panel-view history-view" aria-labelledby="historyTitle" hidden>
+              <header class="panel-heading">
+                <button type="button" data-action="show-tasks" aria-label="返回待办">←</button>
+                <strong id="historyTitle">完成记录</strong>
+                <button type="button" class="heading-text-action">复制本周</button>
+              </header>
+              <ol id="historyList" class="history-list"></ol>
+            </section>
+          </div>
+        </section>
+
+        <section class="capsule-surface" aria-label="当前任务胶囊" hidden>
+          <button id="capsuleCheckbox" type="button" class="circle-button capsule-checkbox" aria-label="完成当前子代办"></button>
+          <button id="capsuleTitle" type="button" class="capsule-title" data-action="expand-window"></button>
+          <span id="capsuleProgress" class="capsule-progress"></span>
+          <span id="capsuleDeadline" class="capsule-deadline"></span>
+          <button type="button" class="capsule-hide" aria-label="隐藏到托盘"><span aria-hidden="true"></span></button>
+        </section>
+
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+        <dialog id="deleteGroupDialog" class="confirm-dialog" aria-labelledby="deleteDialogTitle">
+          <form method="dialog">
+            <span class="dialog-kicker">删除任务组</span>
+            <h2 id="deleteDialogTitle">删除“写周报”？</h2>
+            <p id="deleteDialogCopy">父代办和未完成子代办都会从列表移除，已有完成记录仍然保留。</p>
+            <div class="dialog-actions">
+              <button value="cancel">取消</button>
+              <button id="confirmDeleteGroup" value="confirm" class="danger-button">删除整个任务组</button>
+            </div>
+          </form>
+        </dialog>
+      </section>
+
+      <p id="sceneHint" class="scene-hint">点击进度可展开；父代办的编辑与新增入口都藏在需要时才出现的区域。</p>
+    </section>
+  </main>
+</body>
+</html>

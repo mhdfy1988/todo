@@ -7,6 +7,7 @@ const INITIAL_SCHEMA_VERSION: i64 = 1;
 const QUEUE_REORDER_SCHEMA_VERSION: i64 = 2;
 const TITLE_UPDATE_SCHEMA_VERSION: i64 = 3;
 const DEADLINE_UPDATE_SCHEMA_VERSION: i64 = 4;
+const SUBTASK_SCHEMA_VERSION: i64 = 5;
 
 pub(super) fn migrate(connection: &mut Connection) -> Result<(), LedgerError> {
     loop {
@@ -20,9 +21,9 @@ pub(super) fn migrate(connection: &mut Connection) -> Result<(), LedgerError> {
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .map_err(|error| storage_error("读取 SQLite user_version 失败", error))?;
 
-        if SCHEMA_VERSION != DEADLINE_UPDATE_SCHEMA_VERSION {
+        if SCHEMA_VERSION != SUBTASK_SCHEMA_VERSION {
             return Err(LedgerError::integrity(format!(
-                "代码声明的数据库版本应为 {DEADLINE_UPDATE_SCHEMA_VERSION}，实际为 {SCHEMA_VERSION}"
+                "代码声明的数据库版本应为 {SUBTASK_SCHEMA_VERSION}，实际为 {SCHEMA_VERSION}"
             )));
         }
         if current_version > SCHEMA_VERSION {
@@ -36,9 +37,8 @@ pub(super) fn migrate(connection: &mut Connection) -> Result<(), LedgerError> {
             INITIAL_SCHEMA_VERSION => migrate_v1_to_v2(transaction, application_id)?,
             QUEUE_REORDER_SCHEMA_VERSION => migrate_v2_to_v3(transaction, application_id)?,
             TITLE_UPDATE_SCHEMA_VERSION => migrate_v3_to_v4(transaction, application_id)?,
-            DEADLINE_UPDATE_SCHEMA_VERSION => {
-                return validate_current_schema(transaction, application_id)
-            }
+            DEADLINE_UPDATE_SCHEMA_VERSION => migrate_v4_to_v5(transaction, application_id)?,
+            SUBTASK_SCHEMA_VERSION => return validate_current_schema(transaction, application_id),
             version => {
                 return Err(LedgerError::unsupported_schema(format!(
                     "数据库版本 {version} 不在支持的迁移路径中"
@@ -79,7 +79,7 @@ fn create_current_schema(
     record_migration(
         &transaction,
         SCHEMA_VERSION,
-        "任务快照、事件、奖励、幂等回执、队列重排、标题修改与截止日期初始结构",
+        "任务快照、事件、奖励、幂等回执、队列重排、标题修改、截止日期与一级子代办初始结构",
     )?;
     transaction
         .pragma_update(None, "application_id", APPLICATION_ID)
@@ -330,6 +330,184 @@ fn migrate_v3_to_v4(transaction: Transaction<'_>, application_id: i64) -> Result
         .map_err(|error| storage_error("提交 v3 到 v4 数据库迁移失败", error))
 }
 
+fn migrate_v4_to_v5(transaction: Transaction<'_>, application_id: i64) -> Result<(), LedgerError> {
+    require_application_id(application_id)?;
+    require_migration_record(&transaction, DEADLINE_UPDATE_SCHEMA_VERSION)?;
+
+    let foreign_keys_enabled: i64 = transaction
+        .pragma_query_value(None, "foreign_keys", |row| row.get(0))
+        .map_err(|error| storage_error("读取 SQLite foreign_keys 失败", error))?;
+    if foreign_keys_enabled != 0 {
+        return Err(LedgerError::integrity(
+            "v4 升级前必须在事务外关闭 SQLite foreign_keys",
+        ));
+    }
+    let source_events_sql: String = transaction
+        .query_row(
+            "SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'task_events'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| storage_error("读取 v4 task_events 表结构失败", error))?;
+    let source_tasks_sql: String = transaction
+        .query_row(
+            "SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'tasks'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| storage_error("读取 v4 tasks 表结构失败", error))?;
+    if !source_events_sql.contains("'queue_reordered'")
+        || !source_events_sql.contains("'title_updated'")
+        || !source_events_sql.contains("'deadline_updated'")
+        || !source_tasks_sql.contains("deadline_on")
+    {
+        return Err(LedgerError::integrity(
+            "数据库标记为 v4，但源表缺少 v4 必需字段或事件类型",
+        ));
+    }
+
+    let task_count_before: i64 = transaction
+        .query_row("SELECT COUNT(*) FROM tasks", [], |row| row.get(0))
+        .map_err(|error| storage_error("读取 v4 任务数量失败", error))?;
+    let event_summary_before = event_sequence_summary(&transaction, "task_events")?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE tasks_new (
+                id TEXT PRIMARY KEY NOT NULL,
+                title TEXT NOT NULL CHECK(length(trim(title)) > 0),
+                status TEXT NOT NULL CHECK(status IN ('pending', 'blocked', 'completed', 'abandoned')),
+                parent_task_id TEXT REFERENCES tasks_new(id),
+                sibling_position INTEGER,
+                queue_position INTEGER,
+                defer_until_ms INTEGER,
+                deadline_on TEXT CHECK(deadline_on IS NULL OR deadline_on GLOB
+                    '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                block_reason TEXT,
+                abandon_reason TEXT,
+                completed_at_ms INTEGER,
+                active_completion_event_id TEXT,
+                version INTEGER NOT NULL CHECK(version >= 1),
+                created_at_ms INTEGER NOT NULL CHECK(created_at_ms >= 0),
+                updated_at_ms INTEGER NOT NULL CHECK(updated_at_ms >= created_at_ms),
+                CHECK(queue_position IS NULL OR queue_position > 0),
+                CHECK(sibling_position IS NULL OR sibling_position > 0),
+                CHECK(
+                    (parent_task_id IS NULL AND sibling_position IS NULL AND (
+                        (status = 'pending' AND completed_at_ms IS NULL
+                            AND active_completion_event_id IS NULL
+                            AND ((defer_until_ms IS NULL AND queue_position IS NOT NULL)
+                                OR (defer_until_ms IS NOT NULL AND queue_position IS NULL)))
+                        OR (status = 'completed' AND queue_position IS NULL
+                            AND defer_until_ms IS NULL AND completed_at_ms IS NOT NULL
+                            AND active_completion_event_id IS NOT NULL)
+                        OR (status IN ('blocked', 'abandoned') AND queue_position IS NULL
+                            AND completed_at_ms IS NULL AND active_completion_event_id IS NULL)
+                    ))
+                    OR
+                    (parent_task_id IS NOT NULL AND parent_task_id != id
+                        AND sibling_position IS NOT NULL AND queue_position IS NULL
+                        AND defer_until_ms IS NULL AND deadline_on IS NULL
+                        AND block_reason IS NULL AND (
+                            (status = 'pending' AND completed_at_ms IS NULL
+                                AND active_completion_event_id IS NULL)
+                            OR (status = 'completed' AND completed_at_ms IS NOT NULL
+                                AND active_completion_event_id IS NOT NULL)
+                            OR (status = 'abandoned' AND completed_at_ms IS NULL
+                                AND active_completion_event_id IS NULL)
+                        ))
+                )
+            ) STRICT;
+
+            INSERT INTO tasks_new (
+                id, title, status, parent_task_id, sibling_position, queue_position,
+                defer_until_ms, deadline_on, block_reason, abandon_reason, completed_at_ms,
+                active_completion_event_id, version, created_at_ms, updated_at_ms
+            )
+            SELECT id, title, status, NULL, NULL, queue_position,
+                   defer_until_ms, deadline_on, block_reason, abandon_reason, completed_at_ms,
+                   active_completion_event_id, version, created_at_ms, updated_at_ms
+            FROM tasks;
+
+            CREATE TABLE task_events_new (
+                sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT NOT NULL UNIQUE,
+                command_id TEXT NOT NULL UNIQUE,
+                task_id TEXT NOT NULL REFERENCES tasks_new(id),
+                title_snapshot TEXT NOT NULL,
+                event_type TEXT NOT NULL CHECK(event_type IN (
+                    'created', 'subtask_created', 'completed', 'subtask_completed',
+                    'completion_undone', 'subtask_completion_undone', 'deferred',
+                    'due_recovered', 'blocked', 'recovered', 'abandoned', 'reopened',
+                    'queue_reordered', 'subtasks_reordered', 'title_updated', 'deadline_updated'
+                )),
+                occurred_at_ms INTEGER NOT NULL CHECK(occurred_at_ms >= 0),
+                reason TEXT,
+                metadata_json TEXT NOT NULL CHECK(json_valid(metadata_json)),
+                reverses_event_id TEXT REFERENCES task_events_new(id)
+            ) STRICT;
+
+            INSERT INTO task_events_new (
+                sequence, id, command_id, task_id, title_snapshot, event_type,
+                occurred_at_ms, reason, metadata_json, reverses_event_id
+            )
+            SELECT sequence, id, command_id, task_id, title_snapshot, event_type,
+                   occurred_at_ms, reason, metadata_json, reverses_event_id
+            FROM task_events
+            ORDER BY sequence ASC;",
+        )
+        .map_err(|error| storage_error("复制 v4 账本到 v5 结构失败", error))?;
+
+    let task_count_after: i64 = transaction
+        .query_row("SELECT COUNT(*) FROM tasks_new", [], |row| row.get(0))
+        .map_err(|error| storage_error("读取 v5 任务复制数量失败", error))?;
+    if task_count_after != task_count_before {
+        return Err(LedgerError::integrity(format!(
+            "v4 任务复制校验失败：迁移前 {task_count_before}，复制后 {task_count_after}"
+        )));
+    }
+    let event_summary_after = event_sequence_summary(&transaction, "task_events_new")?;
+    if event_summary_after != event_summary_before {
+        return Err(LedgerError::integrity(format!(
+            "v4 任务事件复制校验失败：迁移前 {event_summary_before:?}，复制后 {event_summary_after:?}"
+        )));
+    }
+
+    transaction
+        .execute_batch(
+            "DROP TABLE task_events;
+             DROP TABLE tasks;
+             ALTER TABLE tasks_new RENAME TO tasks;
+             ALTER TABLE task_events_new RENAME TO task_events;
+             CREATE UNIQUE INDEX tasks_queue_position_unique
+                 ON tasks(queue_position) WHERE queue_position IS NOT NULL;
+             CREATE UNIQUE INDEX tasks_sibling_position_unique
+                 ON tasks(parent_task_id, sibling_position)
+                 WHERE parent_task_id IS NOT NULL;
+             CREATE INDEX tasks_status_index ON tasks(status);
+             CREATE INDEX tasks_parent_index
+                 ON tasks(parent_task_id, sibling_position) WHERE parent_task_id IS NOT NULL;
+             CREATE INDEX task_events_task_time_index
+                 ON task_events(task_id, occurred_at_ms, sequence);
+             CREATE INDEX task_events_type_time_index
+                 ON task_events(event_type, occurred_at_ms, sequence);",
+        )
+        .map_err(|error| storage_error("替换 v5 任务与事件表失败", error))?;
+
+    validate_autoincrement_sequence(&transaction, event_summary_before.2)?;
+    ensure_foreign_keys_valid(&transaction)?;
+    record_migration(
+        &transaction,
+        SUBTASK_SCHEMA_VERSION,
+        "任务增加一级父子关系、同级顺序与子代办事件类型",
+    )?;
+    transaction
+        .pragma_update(None, "user_version", SUBTASK_SCHEMA_VERSION)
+        .map_err(|error| storage_error("写入 SQLite user_version 失败", error))?;
+    transaction
+        .commit()
+        .map_err(|error| storage_error("提交 v4 到 v5 数据库迁移失败", error))
+}
+
 fn validate_current_schema(
     transaction: Transaction<'_>,
     application_id: i64,
@@ -344,11 +522,15 @@ fn validate_current_schema(
         )
         .map_err(|error| storage_error("读取 task_events 表结构失败", error))?;
     if !task_events_sql.contains("'queue_reordered'")
+        || !task_events_sql.contains("'subtask_created'")
+        || !task_events_sql.contains("'subtask_completed'")
+        || !task_events_sql.contains("'subtask_completion_undone'")
+        || !task_events_sql.contains("'subtasks_reordered'")
         || !task_events_sql.contains("'title_updated'")
         || !task_events_sql.contains("'deadline_updated'")
     {
         return Err(LedgerError::integrity(
-            "数据库标记为 v4，但 task_events 缺少当前事件类型",
+            "数据库标记为 v5，但 task_events 缺少当前事件类型",
         ));
     }
     let tasks_sql: String = transaction
@@ -359,10 +541,12 @@ fn validate_current_schema(
         )
         .map_err(|error| storage_error("读取 tasks 表结构失败", error))?;
     if !tasks_sql.contains("deadline_on")
+        || !tasks_sql.contains("parent_task_id")
+        || !tasks_sql.contains("sibling_position")
         || !tasks_sql.contains("[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]")
     {
         return Err(LedgerError::integrity(
-            "数据库标记为 v4，但 tasks 缺少受约束的 deadline_on 字段",
+            "数据库标记为 v5，但 tasks 缺少当前层级与期限字段",
         ));
     }
     transaction
@@ -476,6 +660,8 @@ const CURRENT_SCHEMA_SQL: &str = "CREATE TABLE tasks (
     id TEXT PRIMARY KEY NOT NULL,
     title TEXT NOT NULL CHECK(length(trim(title)) > 0),
     status TEXT NOT NULL CHECK(status IN ('pending', 'blocked', 'completed', 'abandoned')),
+    parent_task_id TEXT REFERENCES tasks(id),
+    sibling_position INTEGER,
     queue_position INTEGER,
     defer_until_ms INTEGER,
     deadline_on TEXT CHECK(deadline_on IS NULL OR deadline_on GLOB
@@ -488,20 +674,41 @@ const CURRENT_SCHEMA_SQL: &str = "CREATE TABLE tasks (
     created_at_ms INTEGER NOT NULL CHECK(created_at_ms >= 0),
     updated_at_ms INTEGER NOT NULL CHECK(updated_at_ms >= created_at_ms),
     CHECK(queue_position IS NULL OR queue_position > 0),
+    CHECK(sibling_position IS NULL OR sibling_position > 0),
     CHECK(
-        (status = 'pending' AND completed_at_ms IS NULL AND active_completion_event_id IS NULL
-            AND ((defer_until_ms IS NULL AND queue_position IS NOT NULL)
-                OR (defer_until_ms IS NOT NULL AND queue_position IS NULL)))
-        OR (status = 'completed' AND queue_position IS NULL AND defer_until_ms IS NULL
-            AND completed_at_ms IS NOT NULL AND active_completion_event_id IS NOT NULL)
-        OR (status IN ('blocked', 'abandoned') AND queue_position IS NULL
-            AND completed_at_ms IS NULL AND active_completion_event_id IS NULL)
+        (parent_task_id IS NULL AND sibling_position IS NULL AND (
+            (status = 'pending' AND completed_at_ms IS NULL
+                AND active_completion_event_id IS NULL
+                AND ((defer_until_ms IS NULL AND queue_position IS NOT NULL)
+                    OR (defer_until_ms IS NOT NULL AND queue_position IS NULL)))
+            OR (status = 'completed' AND queue_position IS NULL
+                AND defer_until_ms IS NULL AND completed_at_ms IS NOT NULL
+                AND active_completion_event_id IS NOT NULL)
+            OR (status IN ('blocked', 'abandoned') AND queue_position IS NULL
+                AND completed_at_ms IS NULL AND active_completion_event_id IS NULL)
+        ))
+        OR
+        (parent_task_id IS NOT NULL AND parent_task_id != id
+            AND sibling_position IS NOT NULL AND queue_position IS NULL
+            AND defer_until_ms IS NULL AND deadline_on IS NULL
+            AND block_reason IS NULL AND (
+                (status = 'pending' AND completed_at_ms IS NULL
+                    AND active_completion_event_id IS NULL)
+                OR (status = 'completed' AND completed_at_ms IS NOT NULL
+                    AND active_completion_event_id IS NOT NULL)
+                OR (status = 'abandoned' AND completed_at_ms IS NULL
+                    AND active_completion_event_id IS NULL)
+            ))
     )
 ) STRICT;
 
 CREATE UNIQUE INDEX tasks_queue_position_unique
     ON tasks(queue_position) WHERE queue_position IS NOT NULL;
+CREATE UNIQUE INDEX tasks_sibling_position_unique
+    ON tasks(parent_task_id, sibling_position) WHERE parent_task_id IS NOT NULL;
 CREATE INDEX tasks_status_index ON tasks(status);
+CREATE INDEX tasks_parent_index
+    ON tasks(parent_task_id, sibling_position) WHERE parent_task_id IS NOT NULL;
 
 CREATE TABLE task_events (
     sequence INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -510,9 +717,10 @@ CREATE TABLE task_events (
     task_id TEXT NOT NULL REFERENCES tasks(id),
     title_snapshot TEXT NOT NULL,
     event_type TEXT NOT NULL CHECK(event_type IN (
-        'created', 'completed', 'completion_undone', 'deferred', 'due_recovered',
-        'blocked', 'recovered', 'abandoned', 'reopened', 'queue_reordered', 'title_updated',
-        'deadline_updated'
+        'created', 'subtask_created', 'completed', 'subtask_completed',
+        'completion_undone', 'subtask_completion_undone', 'deferred', 'due_recovered',
+        'blocked', 'recovered', 'abandoned', 'reopened', 'queue_reordered',
+        'subtasks_reordered', 'title_updated', 'deadline_updated'
     )),
     occurred_at_ms INTEGER NOT NULL CHECK(occurred_at_ms >= 0),
     reason TEXT,
@@ -556,7 +764,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fresh_database_is_created_at_v4() {
+    fn fresh_database_is_created_at_v5() {
         let mut connection = Connection::open_in_memory().expect("应打开内存数据库");
         migrate(&mut connection).expect("应建立最新结构");
 
@@ -574,15 +782,17 @@ mod tests {
             )
             .expect("应读取事件表结构");
 
-        assert_eq!(version, DEADLINE_UPDATE_SCHEMA_VERSION);
+        assert_eq!(version, SUBTASK_SCHEMA_VERSION);
         assert_eq!(application_id, APPLICATION_ID);
         assert!(event_table_sql.contains("'queue_reordered'"));
         assert!(event_table_sql.contains("'title_updated'"));
         assert!(event_table_sql.contains("'deadline_updated'"));
+        assert!(event_table_sql.contains("'subtask_created'"));
+        assert!(event_table_sql.contains("'subtasks_reordered'"));
     }
 
     #[test]
-    fn v1_database_migrates_to_v4_without_losing_sequence_or_foreign_keys() {
+    fn v1_database_migrates_to_v5_without_losing_sequence_or_foreign_keys() {
         let mut connection = Connection::open_in_memory().expect("应打开内存数据库");
         connection
             .execute_batch(V1_MIGRATION_FIXTURE_SQL)
@@ -597,7 +807,7 @@ mod tests {
             .pragma_update(None, "foreign_keys", "OFF")
             .expect("迁移前应关闭外键");
 
-        migrate(&mut connection).expect("v1 应连续迁移到 v4");
+        migrate(&mut connection).expect("v1 应连续迁移到 v5");
         connection
             .pragma_update(None, "foreign_keys", "ON")
             .expect("应重新启用外键");
@@ -614,7 +824,7 @@ mod tests {
             .expect("应读取迁移后事件");
         let migration_count: i64 = connection
             .query_row(
-                "SELECT COUNT(*) FROM schema_migrations WHERE version IN (1, 2, 3, 4)",
+                "SELECT COUNT(*) FROM schema_migrations WHERE version IN (1, 2, 3, 4, 5)",
                 [],
                 |row| row.get(0),
             )
@@ -635,9 +845,9 @@ mod tests {
             })
             .expect("应执行外键检查");
 
-        assert_eq!(version, DEADLINE_UPDATE_SCHEMA_VERSION);
+        assert_eq!(version, SUBTASK_SCHEMA_VERSION);
         assert_eq!(event_summary, (1, 7, 7));
-        assert_eq!(migration_count, 4);
+        assert_eq!(migration_count, 5);
         assert_eq!(event_index_count, 2);
         assert_eq!(foreign_key_violation_count, 0);
 
@@ -674,7 +884,7 @@ mod tests {
     }
 
     #[test]
-    fn v2_database_migrates_to_v4_and_accepts_current_events() {
+    fn v2_database_migrates_to_v5_and_accepts_current_events() {
         let mut connection = Connection::open_in_memory().expect("应打开内存数据库");
         connection
             .execute_batch(V2_MIGRATION_FIXTURE_SQL)
@@ -689,7 +899,7 @@ mod tests {
             .pragma_update(None, "foreign_keys", "OFF")
             .expect("迁移前应关闭外键");
 
-        migrate(&mut connection).expect("v2 应迁移到 v4");
+        migrate(&mut connection).expect("v2 应迁移到 v5");
         connection
             .pragma_update(None, "foreign_keys", "ON")
             .expect("应重新启用外键");
@@ -706,7 +916,7 @@ mod tests {
             .expect("应读取迁移后事件");
         let migration_count: i64 = connection
             .query_row(
-                "SELECT COUNT(*) FROM schema_migrations WHERE version IN (2, 3, 4)",
+                "SELECT COUNT(*) FROM schema_migrations WHERE version IN (2, 3, 4, 5)",
                 [],
                 |row| row.get(0),
             )
@@ -717,9 +927,9 @@ mod tests {
             })
             .expect("应执行外键检查");
 
-        assert_eq!(version, DEADLINE_UPDATE_SCHEMA_VERSION);
+        assert_eq!(version, SUBTASK_SCHEMA_VERSION);
         assert_eq!(event_summary, (1, 5, 5));
-        assert_eq!(migration_count, 3);
+        assert_eq!(migration_count, 4);
         assert_eq!(foreign_key_violation_count, 0);
         connection
             .execute(
@@ -731,7 +941,7 @@ mod tests {
                            '{\"beforeTitle\":\"任务一\",\"afterTitle\":\"任务一（修改）\"}')",
                 [],
             )
-            .expect("v4 应允许标题修改事件");
+            .expect("v5 应允许标题修改事件");
         connection
             .execute(
                 "INSERT INTO task_events (
@@ -742,7 +952,7 @@ mod tests {
                            '{\"beforeDeadlineOn\":null,\"afterDeadlineOn\":\"2026-07-20\"}')",
                 [],
             )
-            .expect("v4 应允许截止日期修改事件");
+            .expect("v5 应允许截止日期修改事件");
     }
 
     #[test]
@@ -774,7 +984,20 @@ mod tests {
     }
 
     const V1_MIGRATION_FIXTURE_SQL: &str = "
-        CREATE TABLE tasks (id TEXT PRIMARY KEY NOT NULL);
+        CREATE TABLE tasks (
+            id TEXT PRIMARY KEY NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            queue_position INTEGER,
+            defer_until_ms INTEGER,
+            block_reason TEXT,
+            abandon_reason TEXT,
+            completed_at_ms INTEGER,
+            active_completion_event_id TEXT,
+            version INTEGER NOT NULL,
+            created_at_ms INTEGER NOT NULL,
+            updated_at_ms INTEGER NOT NULL
+        ) STRICT;
         CREATE TABLE task_events (
             sequence INTEGER PRIMARY KEY AUTOINCREMENT,
             id TEXT NOT NULL UNIQUE,
@@ -803,7 +1026,11 @@ mod tests {
             description TEXT NOT NULL,
             applied_at_ms INTEGER NOT NULL
         ) STRICT;
-        INSERT INTO tasks (id) VALUES ('task-one');
+        INSERT INTO tasks (
+            id, title, status, queue_position, defer_until_ms, block_reason,
+            abandon_reason, completed_at_ms, active_completion_event_id,
+            version, created_at_ms, updated_at_ms
+        ) VALUES ('task-one', '任务一', 'pending', 1, NULL, NULL, NULL, NULL, NULL, 1, 10, 10);
         INSERT INTO task_events (
             sequence, id, command_id, task_id, title_snapshot, event_type,
             occurred_at_ms, metadata_json
@@ -814,7 +1041,20 @@ mod tests {
             VALUES (1, 'v1 fixture', 10);";
 
     const V2_MIGRATION_FIXTURE_SQL: &str = "
-        CREATE TABLE tasks (id TEXT PRIMARY KEY NOT NULL);
+        CREATE TABLE tasks (
+            id TEXT PRIMARY KEY NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            queue_position INTEGER,
+            defer_until_ms INTEGER,
+            block_reason TEXT,
+            abandon_reason TEXT,
+            completed_at_ms INTEGER,
+            active_completion_event_id TEXT,
+            version INTEGER NOT NULL,
+            created_at_ms INTEGER NOT NULL,
+            updated_at_ms INTEGER NOT NULL
+        ) STRICT;
         CREATE TABLE task_events (
             sequence INTEGER PRIMARY KEY AUTOINCREMENT,
             id TEXT NOT NULL UNIQUE,
@@ -843,7 +1083,11 @@ mod tests {
             description TEXT NOT NULL,
             applied_at_ms INTEGER NOT NULL
         ) STRICT;
-        INSERT INTO tasks (id) VALUES ('task-one');
+        INSERT INTO tasks (
+            id, title, status, queue_position, defer_until_ms, block_reason,
+            abandon_reason, completed_at_ms, active_completion_event_id,
+            version, created_at_ms, updated_at_ms
+        ) VALUES ('task-one', '任务一', 'pending', 1, NULL, NULL, NULL, NULL, NULL, 1, 10, 10);
         INSERT INTO task_events (
             sequence, id, command_id, task_id, title_snapshot, event_type,
             occurred_at_ms, metadata_json

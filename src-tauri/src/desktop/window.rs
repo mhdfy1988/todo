@@ -3,8 +3,8 @@ use super::{
     MAIN_WINDOW, WINDOW_STATUS_CHANGED_EVENT,
 };
 use crate::window_geometry::{
-    bottom_right, clamp_to_work_area, is_inside_work_area, resize_preserving_nearest_edges,
-    select_work_area, Point, Size, WorkArea, WINDOW_MARGIN,
+    bottom_right, bottom_right_in_selected_work_area, clamp_to_work_area, is_inside_work_area,
+    resize_preserving_nearest_edges, select_work_area, Point, Size, WorkArea, WINDOW_MARGIN,
 };
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow};
 
@@ -73,6 +73,16 @@ pub(crate) fn place_at_primary_bottom_right(window: &WebviewWindow) -> Result<()
     window
         .set_position(PhysicalPosition::new(position.x, position.y))
         .map_err(|error| tauri_error("设置初始窗口位置失败", error))
+}
+
+pub(crate) fn place_at_restored_monitor_bottom_right(window: &WebviewWindow) -> Result<(), String> {
+    let (restored_position, size) = current_window_geometry(window)?;
+    let work_areas = available_work_areas(window)?;
+    let position = bottom_right_in_selected_work_area(restored_position, size, &work_areas)
+        .ok_or_else(|| "没有可用显示器，无法归位启动胶囊".to_string())?;
+    window
+        .set_position(PhysicalPosition::new(position.x, position.y))
+        .map_err(|error| tauri_error("归位启动胶囊失败", error))
 }
 
 fn position_for_mode(

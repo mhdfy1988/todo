@@ -1,6 +1,6 @@
 {
   "name": "zuoban-desktop-spike",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "description": "本地优先的 Windows 桌面悬浮待办应用",
@@ -22,8 +22,10 @@
     "desktop:bundle:windows": "tauri build --bundles nsis",
     "desktop:smoke": "cargo run --manifest-path src-tauri/Cargo.toml -- --smoke",
     "ledger:smoke": "cargo run --manifest-path src-tauri/Cargo.toml -- --ledger-smoke",
-    "frontend:check": "node --test desktop/tests/*.test.js",
-    "release:version:check": "node scripts/check-release-version.mjs"
+    "frontend:check": "node --test desktop/tests/*.test.js scripts/*.test.mjs",
+    "release:version:check": "node scripts/check-release-version.mjs",
+    "release:changelog:check": "node scripts/release-changelog.mjs",
+    "release:changelog:github-output": "node scripts/release-changelog.mjs --github-output"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.11.4"

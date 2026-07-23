@@ -16,6 +16,14 @@ const cargoToml = read("src-tauri/Cargo.toml");
 const workflow = read(".github/workflows/release.yml");
 const capability = JSON.parse(read("src-tauri/capabilities/default.json"));
 
+function readWorkflowStep(name) {
+  const marker = `      - name: ${name}`;
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1, `缺少发布步骤：${name}`);
+  const next = workflow.indexOf("\n      - name: ", start + marker.length);
+  return workflow.slice(start, next === -1 ? workflow.length : next);
+}
+
 test("三个发布版本和 Windows NSIS 目标保持一致", () => {
   const cargoVersion = cargoToml.match(/^version\s*=\s*"([^"]+)"$/m)?.[1];
   assert.equal(packageJson.version, tauriConfig.version);
@@ -44,9 +52,19 @@ test("发布工作流先过门禁，再上传安装器、签名和 latest.json",
   assert.match(workflow, /^\s*permissions:\s*\n\s*contents: write/m);
   assert.match(workflow, /runs-on: windows-latest/);
   assert.match(workflow, /npm\.cmd run release:version:check/);
+  assert.match(workflow, /npm\.cmd run release:changelog:github-output/);
   assert.match(workflow, /npm\.cmd run desktop:check/);
   assert.match(workflow, /手动发布只能从 main 分支执行/);
-  assert.equal(workflow.match(/shell: pwsh/g)?.length, 4);
+  for (const name of [
+    "限制手动发布来源",
+    "读取标准更新日志",
+    "拒绝覆盖已发布版本",
+    "验证更新签名与 latest.json",
+    "核对草稿 Release 更新日志",
+    "发布已验证的 Release",
+  ]) {
+    assert.match(readWorkflowStep(name), /^\s+shell: pwsh$/m);
+  }
   assert.doesNotMatch(workflow, /shell: powershell/);
   assert.match(workflow, /拒绝覆盖已发布版本/);
   assert.match(workflow, /SkipHttpErrorCheck/);
@@ -59,9 +77,14 @@ test("发布工作流先过门禁，再上传安装器、签名和 latest.json",
   assert.match(workflow, /uploadUpdaterSignatures: true/);
   assert.match(workflow, /args: --bundles nsis/);
   assert.match(workflow, /releaseDraft: true/);
+  assert.match(workflow, /releaseBody: \$\{\{ steps\.changelog\.outputs\.releaseBody \}\}/);
+  assert.match(workflow, /generateReleaseNotes: false/);
+  assert.doesNotMatch(workflow, /generateReleaseNotes: true/);
   assert.match(workflow, /--example verify_updater_signature/);
   assert.match(workflow, /Invoke-WebRequest -Uri \$downloadUrl/);
   assert.match(workflow, /Get-FileHash -LiteralPath \$downloadedInstaller/);
+  assert.match(workflow, /EXPECTED_RELEASE_BODY: \$\{\{ steps\.changelog\.outputs\.releaseBody \}\}/);
+  assert.match(workflow, /草稿 Release 正文与 CHANGELOG 当前版本段不一致/);
   assert.match(workflow, /gh release edit .*--draft=false --latest/);
 });
 
