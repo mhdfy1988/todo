@@ -2,7 +2,7 @@
 
 “代办”是一款本地优先的 Windows 桌面悬浮待办：想到事情时快速记下，按自己需要的顺序处理，并保留完成历史作为周报和回顾依据。
 
-当前源码版本为 `0.1.3`，正在基于公开的 [`0.1.2`](https://github.com/mhdfy1988/todo/releases/tag/v0.1.2) 收口正式发布。`0.1.3` 精简一级子代办的新增与折叠交互，数据库继续使用 schema v5。Windows x64 NSIS 安装器、更新签名与 `latest.json` 仍由发布工作流闭环验证；宠物、番茄钟、AI 和日历均不在本阶段范围内。
+当前公开版本为 [`0.1.3`](https://github.com/mhdfy1988/todo/releases/tag/v0.1.3)，属于可试用的早期版本。它精简一级子代办的新增与折叠交互，数据库继续使用 schema v5；Windows x64 NSIS 安装器、更新签名与 `latest.json` 已由发布工作流和公开下载复核。当前正式安装基线仍为 `0.1.2`，正好用于下一步实测 `0.1.2 → 0.1.3` 应用内更新。宠物、番茄钟、AI 和日历均不在本阶段范围内。
 
 ## 功能
 
@@ -91,7 +91,7 @@ npm.cmd run desktop:build
 npm.cmd run desktop:bundle:windows
 ```
 
-安装器与 `.sig` 更新签名位于 `src-tauri/target/release/bundle/nsis/`。本机已经验证两类产物可以成功生成；[`v0.1.2` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.2) 的线上 `latest.json`、更新签名和资产摘要由发布工作流验证，完整版本间升级闭环仍待已安装的 `0.1.1` 实测。
+安装器与 `.sig` 更新签名位于 `src-tauri/target/release/bundle/nsis/`。[`v0.1.3` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.3) 的线上 `latest.json`、更新签名和资产摘要已经由发布工作流与匿名公开下载双重验证；完整版本间升级闭环仍待当前已安装的 `0.1.2` 实测。
 
 正式发布前需要先试装时，使用独立候选配置生成“代办测试版”：
 
@@ -103,7 +103,7 @@ npx.cmd tauri build --bundles nsis --ci --no-sign --config src-tauri\tauri.candi
 
 ## 安装、发布与更新
 
-- 首次安装：用户从 [`v0.1.2` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.2) 手动下载 Windows x64 `setup.exe` 并安装；安装范围为当前用户。
+- 首次安装：用户从 [`v0.1.3` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.3) 手动下载 Windows x64 `setup.exe` 并安装；安装范围为当前用户。
 - 后续更新：正常模式启动后立即静默检查一次，此后每 24 小时检查；更多菜单提供“检查更新”。发现新版本后，用户点击“安装更新”才会下载、安装并重启应用。
 - 冒烟隔离：smoke 前端不会启动更新控制器，Rust 更新服务也会在访问网络前拒绝请求，避免测试触碰正式更新源。
 - 自动发布：`.github/workflows/release.yml` 支持从 `main` 手动触发和 `v*` 标签触发；已公开的版本禁止覆盖，新版本必须先同步提升三个版本号，并把 [`CHANGELOG.md`](./CHANGELOG.md) 的 `Unreleased` 内容收口到带实际日期的当前版本段。GitHub Release 正文只读取该标准版本段，不混入自动提交列表；`tauri-apps/tauri-action@v1` 先生成草稿 Release、安装器、更新签名和 `latest.json`，工作流回读核对正文、用客户端公钥验签并核对元数据后才自动发布。
@@ -121,7 +121,7 @@ npx.cmd tauri build --bundles nsis --ci --no-sign --config src-tauri\tauri.candi
 ## 已知限制
 
 - 当前只按 Windows 桌面环境开发和验证，不承诺 macOS 或 Linux 可用。
-- 当前安装器只面向 Windows x64；`v0.1.2` 的公开下载、元数据和更新签名由发布工作流验证，`v0.1.1 → v0.1.2` 应用内更新与 schema v4→v5 真实数据迁移仍待实机验证。
+- 当前安装器只面向 Windows x64；`v0.1.3` 的公开下载、元数据和更新签名已完成验证，`v0.1.2 → v0.1.3` 应用内发现、安装重启与数据保留仍待实机验证。
 - Windows Authenticode 暂未配置，安装器可能触发 SmartScreen 提示。
 - 多显示器、所有 Windows 缩放比例以及任务栏位于四个方向的组合仍需更多实机验证。
 - 截止日期只用于本地展示，不会自动排序、隐藏任务、提醒、发送通知、同步日历或产生奖惩。

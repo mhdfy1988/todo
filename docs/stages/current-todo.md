@@ -32,13 +32,13 @@
 - [x] RELEASE-0.1.2 收口版本文档、推送 main 并完成正式 GitHub Release
 - [x] SUBTASK-FEEDBACK-4 固定父行子代办新增入口，移除底部重复入口并修复空新增取消后的折叠状态
 - [x] STORAGE-FEEDBACK-1 修复并发首次打开时 SQLite WAL 切换的瞬时锁竞争
-- [ ] RELEASE-0.1.3 收口版本文档、推送 main 并完成正式 GitHub Release
+- [x] RELEASE-0.1.3 收口版本文档、推送 main 并完成正式 GitHub Release
 - [ ] UPDATE-0.1.3 从已安装的 `v0.1.2` 完成应用内发现、下载校验、安装重启与数据保留实测
 
 ## 当前指针
-- 阶段状态：`v0.1.3` 源码、标准 CHANGELOG 与交互文档正在收口；Windows 卸载注册信息已确认当前正式安装基线为 `v0.1.2`
-- 当前正在做：运行 `v0.1.3` 完整发布门禁，随后由 GitHub Actions 生成并验证正式安装器、更新签名、`latest.json` 与 Release 正文
-- 完成后下一项：在已安装的 `v0.1.2` 中发现并安装 `v0.1.3`，核对固定 `＋`、空新增取消折叠、原有父子数据、托盘单实例和再次检查更新结果
+- 阶段状态：`v0.1.3` 已通过签名发布闭环成为 GitHub Latest；Windows 卸载注册信息确认当前正式安装基线仍为 `v0.1.2`
+- 当前正在做：从已安装的 `v0.1.2` 发起 `v0.1.3` 应用内更新，核对发现、下载校验、安装重启和数据保留
+- 完成后下一项：在升级后的正式窗口核对固定 `＋`、空新增取消折叠、原有父子数据、托盘单实例、再次检查更新结果和日常手感
 - 边界：公开发布产物不可覆盖；若升级实测发现问题，必须提升版本修复，不能替换 `v0.1.3` 资产
 
 ## 后续记录（追加）
@@ -70,6 +70,7 @@
 - STORAGE-FEEDBACK-1 根因与修复：两条连接的 `BEGIN IMMEDIATE` 已能串行化 schema 初始化，但事务提交后仍可能同时切换 `journal_mode=WAL`；现在只对 SQLite 明确返回的 `DatabaseBusy` / `DatabaseLocked` 在 5 秒重试窗口内处理，并用 rusqlite 返回值确认实际模式为 `wal`，其他错误继续立即失败
 - STORAGE-FEEDBACK-1 验证：原失败测试定向通过，并连续重复 50 次全部成功；该修复不改变 schema、领域状态或数据兼容协议
 - RELEASE-0.1.3 本地门禁：前端 157/157、Rust 68/68、版本与标准 CHANGELOG、Rustfmt、Clippy、独立账本 smoke、桌面联合 smoke 均通过；本地 release EXE 的产品名与文件版本为“代办”/`0.1.3`，无安装冒烟退出码为 0。正式 NSIS、updater 签名和 `latest.json` 仍必须由 GitHub Actions 生成并独立核验
+- RELEASE-0.1.3 正式结果：[Actions #30031343307](https://github.com/mhdfy1988/todo/actions/runs/30031343307) 已完整成功；[`v0.1.3`](https://github.com/mhdfy1988/todo/releases/tag/v0.1.3) 已成为 GitHub Latest，Release、标签和发布工作流均指向 `529a53f6e7d3d9e8eed91f4c2cddcfae137b82a6`；公开资产共 3 项，安装器 SHA-256 为 `230FDD69E0B4D5E49854EF711C18B9A0D8E289713EFAE325AC8B42D713D68DFE`，匿名下载、Release digest、`.sig`、内嵌公钥验签、`latest.json` 和 CHANGELOG 正文核对均通过
 - 更新实测指针调整：此前计划的 `v0.1.1 → v0.1.2` updater 路径没有形成可确认记录；当前 Windows 卸载注册信息已经显示正式“代办”为 `0.1.2`，因此下一条可执行闭环改为从该真实安装基线升级到 `v0.1.3`
 - 初始化：用户根据当前生产界面截图提出界面杂乱、提示过多、内容拥挤
 - 范围：本轮先做界面减法，不扩展宠物、AI、日历或新的任务状态命令
