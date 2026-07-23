@@ -7,11 +7,12 @@ use super::{
     service::{stored_receipt_from_json, LedgerStore},
 };
 use rusqlite::{
-    params, types::Type, Connection, OptionalExtension, Row, Transaction, TransactionBehavior,
+    params, types::Type, Connection, ErrorCode, OptionalExtension, Row, Transaction,
+    TransactionBehavior,
 };
 use std::{
     path::{Path, PathBuf},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 mod integrity;
@@ -21,6 +22,8 @@ use integrity::verify_integrity_in;
 use schema::migrate;
 
 pub const SCHEMA_VERSION: i64 = 5;
+const WAL_RETRY_TIMEOUT: Duration = Duration::from_secs(5);
+const WAL_RETRY_DELAY: Duration = Duration::from_millis(10);
 
 const TASK_SELECT: &str = "SELECT id, title, status, parent_task_id, sibling_position, \
     queue_position, defer_until_ms, deadline_on, block_reason, abandon_reason, completed_at_ms, \
@@ -96,9 +99,7 @@ impl SqliteLedgerStore {
         }
         foreign_keys_result?;
         if enable_wal {
-            connection
-                .pragma_update(None, "journal_mode", "WAL")
-                .map_err(|error| storage_error("启用 SQLite WAL 失败", error))?;
+            configure_wal(&connection)?;
         }
         connection
             .pragma_update(None, "synchronous", "FULL")
@@ -126,6 +127,31 @@ impl SqliteLedgerStore {
     #[cfg(debug_assertions)]
     pub(crate) fn exit_before_commit(&mut self, exit_code: i32) {
         self.interruption = CommitInterruption::ExitBeforeCommit(exit_code);
+    }
+}
+
+fn configure_wal(connection: &Connection) -> Result<(), LedgerError> {
+    let started_at = Instant::now();
+    loop {
+        match connection
+            .pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get::<_, String>(0))
+        {
+            Ok(mode) if mode.eq_ignore_ascii_case("wal") => return Ok(()),
+            Ok(mode) => {
+                return Err(LedgerError::storage(format!(
+                    "启用 SQLite WAL 后返回了意外日志模式：{mode}"
+                )))
+            }
+            Err(error)
+                if matches!(
+                    error.sqlite_error_code(),
+                    Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked)
+                ) && started_at.elapsed() < WAL_RETRY_TIMEOUT =>
+            {
+                std::thread::sleep(WAL_RETRY_DELAY);
+            }
+            Err(error) => return Err(storage_error("启用 SQLite WAL 失败", error)),
+        }
     }
 }
 

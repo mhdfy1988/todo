@@ -154,7 +154,7 @@ body[data-panel="history"] .history-view { display: flex; }
   min-height: 44px;
   padding: 0 2px 0 10px;
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 26px 28px;
+  grid-template-columns: 20px minmax(0, 1fr) 26px 26px 28px;
   align-items: center;
   gap: 9px;
   border-bottom: 1px solid var(--line);
@@ -171,7 +171,6 @@ body[data-search-panel="tasks"] .task-row {
 .task-row.is-editing { min-height: 78px; }
 .task-row.is-editing .task-deadline { display: none; }
 .task-main { min-width: 0; display: flex; align-items: center; gap: 8px; }
-.task-title-slot { min-width: 0; display: flex; flex: 1; align-items: center; }
 .task-title {
   flex: 1;
   width: 100%;
@@ -204,27 +203,36 @@ body[data-search-panel="tasks"] .task-row {
 .task-deadline:focus-visible { color: var(--soft); }
 .task-deadline.is-today { color: #a45f3f; }
 .task-deadline.is-overdue { color: #a34f3f; }
-.subtask-progress-button,
-.subtask-add-trigger {
+.subtask-progress-button {
   flex: 0 0 auto;
   min-width: 0;
-  padding: 2px 0;
+  min-height: 28px;
+  padding: 0 3px;
   border: 0;
+  border-radius: 7px;
   background: transparent;
   color: var(--faint);
   font-size: 9px;
   white-space: nowrap;
+}
+.subtask-add-trigger {
+  width: 26px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--faint);
+  font-size: 15px;
+  line-height: 1;
 }
 .subtask-progress-button::after { content: "›"; display: inline-block; margin-left: 3px; font-size: 11px; transition: transform 120ms ease; }
 .subtask-progress-button[aria-expanded="true"]::after { transform: rotate(90deg); }
 .subtask-progress-button:hover,
 .subtask-progress-button:focus-visible,
 .subtask-add-trigger:hover,
-.subtask-add-trigger:focus-visible { color: var(--soft); }
-.subtask-add-trigger { max-width: 0; overflow: hidden; opacity: 0; transition: max-width 120ms ease, opacity 120ms ease; }
-.task-row:hover .subtask-add-trigger,
-.task-row:focus-within .subtask-add-trigger { max-width: 44px; opacity: 1; }
-.task-row.is-editing .subtask-add-trigger { display: none; }
+.subtask-add-trigger:focus-visible { background: var(--wash); color: var(--soft); }
+.subtask-add-trigger:disabled { opacity: 0.38; }
 .task-edit-stack { width: 100%; min-width: 0; padding: 5px 0; display: grid; gap: 5px; }
 .task-title-editor {
   width: 100%;
@@ -263,10 +271,6 @@ body[data-search-panel="tasks"] .task-row {
 .task-deadline-clear { padding: 2px 1px; border: 0; background: transparent; color: var(--faint); font-size: 9px; }
 .task-deadline-clear:hover,
 .task-deadline-clear:focus-visible { color: #9b4935; }
-.task-edit-add-subtask { justify-self: start; padding: 2px 1px; border: 0; background: transparent; color: var(--faint); font-size: 9px; }
-.task-edit-add-subtask:hover,
-.task-edit-add-subtask:focus-visible { color: var(--soft); }
-body[data-search-panel="tasks"] .task-edit-add-subtask { display: none; }
 .task-checkbox {
   width: 17px;
   height: 17px;
@@ -369,11 +373,7 @@ body[data-search-panel="tasks"] .subtask-row { grid-template-columns: 20px minma
 .subtask-handle { width: 28px; color: #a0a5ac; font-size: 15px; cursor: grab; }
 .subtask-handle:hover { background: var(--wash); color: var(--soft); }
 .subtask-handle:active { cursor: grabbing; }
-.subtask-add-row,
 .subtask-capture-row { min-height: 34px; padding: 3px 36px 2px 7px; display: flex; align-items: center; border-top: 1px solid rgba(223, 227, 231, 0.78); }
-.subtask-add-button { padding: 4px 0; border: 0; background: transparent; color: var(--faint); font-size: 9px; text-align: left; }
-.subtask-add-button:hover,
-.subtask-add-button:focus-visible { color: var(--soft); }
 .subtask-capture-input:disabled { opacity: 0.62; }
 .task-list .empty-row { min-height: 44px; padding: 0 10px; display: flex; align-items: center; border-bottom: 1px solid var(--line); color: var(--faint); font-size: 11px; }
 .history-link { width: 100%; min-height: 42px; margin-top: 14px; padding: 0; display: flex; align-items: center; justify-content: space-between; border: 0; border-bottom: 1px solid var(--line); background: transparent; font-size: 11px; text-align: left; }

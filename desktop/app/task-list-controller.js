@@ -137,7 +137,6 @@ export class TaskListController {
     const editStack = event.target.closest?.(".task-edit-stack");
     if (editStack) {
       if (event.isComposing || event.keyCode === 229) return;
-      if (event.target.closest?.(".task-edit-add-subtask")) return;
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -182,7 +181,6 @@ export class TaskListController {
     const deadlineLabel = this.list.ownerDocument.createElement("label");
     const deadlineInput = this.list.ownerDocument.createElement("input");
     const clearButton = this.list.ownerDocument.createElement("button");
-    const addSubtaskButton = this.list.ownerDocument.createElement("button");
     stack.className = "task-edit-stack";
     input.type = "text";
     input.className = "task-title-editor";
@@ -208,12 +206,7 @@ export class TaskListController {
     clearButton.hidden = !originalDeadlineOn;
     clearButton.setAttribute("aria-label", `清除截止日期：${originalTitle}`);
     deadlineRow.append(deadlineLabel, deadlineInput, clearButton);
-    addSubtaskButton.type = "button";
-    addSubtaskButton.className = "task-edit-add-subtask";
-    addSubtaskButton.dataset.parentTaskId = taskId;
-    addSubtaskButton.textContent = "＋ 添加子代办";
-    addSubtaskButton.setAttribute("aria-label", `为${originalTitle}添加子代办`);
-    stack.append(input, deadlineRow, addSubtaskButton);
+    stack.append(input, deadlineRow);
 
     this.editState = {
       taskId,

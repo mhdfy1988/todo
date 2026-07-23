@@ -205,7 +205,7 @@ export class LedgerView {
       const main = this.document.createElement("div");
       const title = this.document.createElement("button");
       const progress = this.document.createElement("button");
-      const addFirst = this.document.createElement("button");
+      const addSubtask = this.document.createElement("button");
       const remove = this.document.createElement("button");
       const handle = this.document.createElement("button");
       const handleMark = this.document.createElement("span");
@@ -228,8 +228,8 @@ export class LedgerView {
       appendHighlightedText(this.document, title, task.title, query);
       title.title = task.title;
       title.setAttribute("aria-label", `修改待办：${task.title}`);
+      main.append(title);
       if (group.totalCount > 0) {
-        main.append(title);
         progress.type = "button";
         progress.className = "subtask-progress-button";
         progress.dataset.parentTaskId = task.id;
@@ -238,19 +238,14 @@ export class LedgerView {
         progress.setAttribute("aria-controls", `subtasks-${task.id}`);
         progress.setAttribute("aria-label", `${task.title}的子代办，已完成${group.completedCount}项，共${group.totalCount}项`);
         main.append(progress);
-      } else if (!searching) {
-        const titleSlot = this.document.createElement("div");
-        titleSlot.className = "task-title-slot";
-        addFirst.type = "button";
-        addFirst.className = "subtask-add-trigger";
-        addFirst.dataset.parentTaskId = task.id;
-        addFirst.textContent = "＋ 子项";
-        addFirst.setAttribute("aria-label", `为${task.title}添加子代办`);
-        titleSlot.append(title, addFirst);
-        main.append(titleSlot);
-      } else {
-        main.append(title);
       }
+      addSubtask.type = "button";
+      addSubtask.className = "subtask-add-trigger";
+      addSubtask.dataset.parentTaskId = task.id;
+      addSubtask.textContent = "＋";
+      addSubtask.title = "添加子代办";
+      addSubtask.hidden = searching;
+      addSubtask.setAttribute("aria-label", `为${task.title}添加子代办`);
       const deadline = deadlinePresentation(task.deadlineOn ?? null);
       if (deadline) {
         const deadlineButton = this.document.createElement("button");
@@ -294,19 +289,7 @@ export class LedgerView {
       visibleSubtasks.forEach((subtask) => {
         subtaskList.append(this.#createSubtaskRow(subtask, task, query, searching));
       });
-      if (!searching) {
-        const addRow = this.document.createElement("li");
-        const addButton = this.document.createElement("button");
-        addRow.className = "subtask-add-row";
-        addButton.type = "button";
-        addButton.className = "subtask-add-button";
-        addButton.dataset.parentTaskId = task.id;
-        addButton.textContent = "＋ 添加子代办";
-        addButton.setAttribute("aria-label", `为${task.title}添加子代办`);
-        addRow.append(addButton);
-        subtaskList.append(addRow);
-      }
-      item.append(checkbox, main, remove, handle, subtaskList);
+      item.append(checkbox, main, addSubtask, remove, handle, subtaskList);
       this.taskList.append(item);
     });
   }
@@ -580,7 +563,7 @@ export class LedgerView {
     this.taskList.querySelectorAll(".subtask-title").forEach((button) => {
       button.disabled = unavailable || button.closest(".subtask-row")?.dataset.status === "completed";
     });
-    this.taskList.querySelectorAll(".subtask-add-trigger, .subtask-add-button").forEach((button) => {
+    this.taskList.querySelectorAll(".subtask-add-trigger").forEach((button) => {
       button.disabled = unavailable || this.searchState.panel === "tasks";
     });
     this.taskList.querySelectorAll(".subtask-handle").forEach((handle) => {

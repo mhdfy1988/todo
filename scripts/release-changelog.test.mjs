@@ -12,31 +12,30 @@ const projectChangelog = readFileSync(
   "utf8",
 );
 
-test("当前 CHANGELOG 使用标准结构并已收口 0.1.2", () => {
+test("当前 CHANGELOG 使用标准结构并已收口 0.1.3", () => {
   const sections = parseChangelog(projectChangelog);
 
   assert.equal(sections[0].name, "Unreleased");
   assert.equal(sections[0].body, "");
-  assert.equal(sections[1].name, "0.1.2");
+  assert.equal(sections[1].name, "0.1.3");
   assert.equal(sections[1].date, "2026-07-24");
-  assert.match(sections[1].body, /一级子代办/);
+  assert.match(sections[1].body, /子代办新增入口/);
 });
 
 test("Windows CRLF 换行不会破坏标准结构解析", () => {
   const sections = parseChangelog(projectChangelog.replaceAll("\n", "\r\n"));
 
   assert.equal(sections[0].name, "Unreleased");
-  assert.equal(sections[1].name, "0.1.2");
+  assert.equal(sections[1].name, "0.1.3");
 });
 
 test("发布正文只提取指定版本的标准分类内容", () => {
-  const release = extractReleaseBody(projectChangelog, "0.1.2");
+  const release = extractReleaseBody(projectChangelog, "0.1.3");
 
   assert.equal(release.date, "2026-07-24");
-  assert.match(release.body, /^### Added/m);
   assert.match(release.body, /^### Changed/m);
   assert.match(release.body, /^### Fixed/m);
-  assert.doesNotMatch(release.body, /0\.1\.1/);
+  assert.doesNotMatch(release.body, /0\.1\.2/);
 });
 
 test("请求不存在的版本时拒绝生成发布正文", () => {

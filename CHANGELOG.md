@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-24
+
+### Changed
+
+- 将子代办新增入口固定在父待办行右侧，进度数字只负责展开或收起，并移除子列表底部重复的“添加子代办”入口。
+- 父待办进入标题或期限修改态、子代办进入新增态时，继续保留右侧操作列位置，避免删除与排序按钮横向跳动。
+
+### Fixed
+
+- 修复没有子代办的父项取消空白新增后仍残留展开空区的问题；空白失焦或按 `Esc` 会恢复收起，已有子项的父项取消新增时仍保持展开。
+- 修复两个连接同时首次打开同一账本时，SQLite 切换 WAL 日志模式可能因瞬时锁竞争而启动失败的问题；只对明确的 busy/locked 做有界重试，并校验实际日志模式。
+
 ## [0.1.2] - 2026-07-24
 
 ### Added
@@ -43,7 +55,8 @@
 - 支持完成记录与撤销、当前页面搜索、桌面胶囊、系统托盘和应用内更新。
 - 使用本地 SQLite 事件账本保存任务、完成历史、奖励和幂等命令回执。
 
-[Unreleased]: https://github.com/mhdfy1988/todo/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/mhdfy1988/todo/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/mhdfy1988/todo/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/mhdfy1988/todo/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mhdfy1988/todo/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mhdfy1988/todo/releases/tag/v0.1.0

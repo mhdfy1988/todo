@@ -62,8 +62,11 @@ export class SubtaskController {
       row.classList.toggle("has-expanded-subtasks", expanded);
       const progress = row.querySelector(":scope > .task-main .subtask-progress-button");
       if (progress) progress.setAttribute("aria-expanded", String(expanded));
-      const addRow = subtaskList.querySelector(":scope > .subtask-add-row");
-      if (addRow) addRow.hidden = this.addingParentId === parentTaskId || this.isSearchActive();
+      const addTrigger = row.querySelector(":scope > .subtask-add-trigger");
+      if (addTrigger) {
+        addTrigger.hidden = this.isSearchActive();
+        addTrigger.disabled = this.addingParentId === parentTaskId || !this.canMutate();
+      }
     });
     this.#syncCaptureEditor();
   }
@@ -169,7 +172,7 @@ export class SubtaskController {
       this.toggle(progress.dataset.parentTaskId);
       return;
     }
-    const add = event.target.closest?.(".subtask-add-trigger, .subtask-add-button, .task-edit-add-subtask");
+    const add = event.target.closest?.(".subtask-add-trigger");
     if (add && !add.disabled) {
       event.preventDefault();
       event.stopPropagation();
@@ -191,7 +194,7 @@ export class SubtaskController {
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        this.#stopAdding(true);
+        this.#stopAdding(true, { collapseEmptyParent: true });
       } else if (event.key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
@@ -235,7 +238,7 @@ export class SubtaskController {
     if (event.target === this.#captureInput()) {
       this.addDraft = event.target.value;
       if (!this.addDraft.trim()) {
-        this.#stopAdding(false);
+        this.#stopAdding(false, { collapseEmptyParent: true });
         return;
       }
       if (!event.target.disabled) {
@@ -276,8 +279,6 @@ export class SubtaskController {
     }
     const input = captureRow.querySelector(".subtask-capture-input");
     input.disabled = !this.canMutate();
-    const addRow = subtaskList.querySelector(":scope > .subtask-add-row");
-    if (addRow) addRow.hidden = true;
   }
 
   async #submitCapture(input, { restoreFocus = false } = {}) {
@@ -316,8 +317,15 @@ export class SubtaskController {
     }
   }
 
-  #stopAdding(restoreFocus) {
+  #stopAdding(restoreFocus, { collapseEmptyParent = false } = {}) {
     const parentTaskId = this.addingParentId;
+    if (
+      collapseEmptyParent
+      && parentTaskId
+      && this.#parentRow(parentTaskId)?.dataset.subtaskCount === "0"
+    ) {
+      this.expandedParentIds.delete(parentTaskId);
+    }
     this.addingParentId = null;
     this.addDraft = "";
     this.sync();
@@ -537,7 +545,7 @@ function restoreSubtaskOrder(list, taskIds) {
     [...list.querySelectorAll(":scope > .subtask-row")]
       .map((row) => [row.dataset.taskId, row]),
   );
-  const footer = list.querySelector(":scope > .subtask-add-row, :scope > .subtask-capture-row");
+  const footer = list.querySelector(":scope > .subtask-capture-row");
   taskIds.forEach((taskId) => {
     const row = rows.get(taskId);
     if (row) list.insertBefore(row, footer ?? null);

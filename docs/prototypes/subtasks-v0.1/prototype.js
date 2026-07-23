@@ -22,8 +22,8 @@ const deleteDialogCopy = document.querySelector("#deleteDialogCopy");
 const sceneHint = document.querySelector("#sceneHint");
 
 const sceneCopy = {
-  default: "点击进度可展开；父代办的编辑与新增入口都藏在需要时才出现的区域。",
-  add: "打开“添加子代办”后，输入非空标题并按 Enter 或移开焦点即可创建；成功后恢复底部添加入口。",
+  default: "历史原型：当时点击进度展开，并把新增入口放在按需区域；v0.1.3 已改为父行固定“＋”。",
+  add: "历史原型：当时成功后恢复底部入口；v0.1.3 改为父行固定“＋”，空新增取消按是否已有子项决定收起或保持展开。",
   complete: "勾选父代办会自动完成剩余子代办，再完成父项；单独完成最后一个子代办仍不会自动完成父项。",
   delete: "只有删除整个任务组才确认；删除单个未完成子代办仍是低打扰的可追溯软删除。",
   search: "命中子代办时保留父代办上下文，进度仍显示整组真实进度；搜索期间禁止重排和添加。",
