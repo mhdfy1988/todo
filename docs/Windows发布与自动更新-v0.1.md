@@ -1,7 +1,7 @@
 # 代办：Windows 发布与自动更新 v0.1
 
 > 状态：`v0.1.2` 已按标准 CHANGELOG 和签名闭环正式发布；当前用户安装基线仍为 `v0.1.1`，版本间升级与 schema v4→v5 真实数据迁移尚待实机验证
-> 更新时间：2026-07-23
+> 更新时间：2026-07-24
 > 适用版本：`0.1.1 → 0.1.2`
 
 ## 1. 当前结论
@@ -119,6 +119,8 @@ UpdateController
 8. 通过 releases 列表定位当前标签的唯一草稿，按 Release ID 回读正文并与本地抽取结果逐字核对；只有正文、签名和元数据全部通过，才使用官方 Update Release API 按同一 ID 转为正式 GitHub Release。按标签查询的端点只返回已发布 Release，不能用于草稿回读。失败时保留草稿，不进入 `releases/latest`。
 
 `v0.1.2` 已通过上述流程正式发布：[GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.2)。公开 Release 与更新资产已经升级到 `0.1.2`，当前 Windows 用户安装基线仍为 `0.1.1`；因此应用内升级还必须实机核对 v4 迁移前备份、父子任务投影和原有数据保留。
+
+本次发布的首轮 [Actions #30022626592](https://github.com/mhdfy1988/todo/actions/runs/30022626592) 已完成测试、正式构建、updater 验签与 `latest.json` 核对，但因按标签查询的端点无法返回草稿 Release，在正文核对步骤以 404 失败并保持未公开。提交 `d3c7ea0823d4f784a8466519e888f58d346ac5e0` 改为先从 releases 列表定位唯一草稿，再按 Release ID 回读并发布；重试 [Actions #30023429949](https://github.com/mhdfy1988/todo/actions/runs/30023429949) 完整成功。公开 Release、标签和远端 `main` 在发布时均指向该提交；正式安装器 SHA-256 为 `355E36910A80446D3BFBF90C53EACF3574A2B8F8CCBC642B77CFECB4FE93107B`，公开下载后的签名、`latest.json` 与 CHANGELOG 正文已再次独立核对。
 
 ## 7. 发布密钥
 
