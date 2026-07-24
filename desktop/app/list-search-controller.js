@@ -1,6 +1,6 @@
 const PANEL_COPY = Object.freeze({
   tasks: { label: "搜索待办", listId: "taskList" },
-  history: { label: "搜索完成记录", listId: "historyList" },
+  history: { label: "搜索已完成", listId: "historyList" },
 });
 
 /** 只管理当前列表的临时搜索状态，不读取账本，也不提交任何命令。 */
@@ -15,7 +15,6 @@ export class ListSearchController {
    *   searchAction: HTMLButtonElement,
    *   captureForm: HTMLFormElement,
    *   taskTitleInput: HTMLInputElement,
-   *   historyHeading: HTMLElement,
    *   historyBackButton: HTMLButtonElement,
    *   menuButton: HTMLElement,
    *   onChange: (state: {panel: "tasks"|"history"|null, query: string}) => void,
@@ -30,7 +29,6 @@ export class ListSearchController {
     searchAction,
     captureForm,
     taskTitleInput,
-    historyHeading,
     historyBackButton,
     menuButton,
     onChange,
@@ -43,7 +41,6 @@ export class ListSearchController {
     this.searchAction = searchAction;
     this.captureForm = captureForm;
     this.taskTitleInput = taskTitleInput;
-    this.historyHeading = historyHeading;
     this.historyBackButton = historyBackButton;
     this.menuButton = menuButton;
     this.onChange = onChange;
@@ -95,7 +92,6 @@ export class ListSearchController {
     this.input.setAttribute("aria-controls", copy.listId);
     this.form.hidden = false;
     this.captureForm.hidden = panel === "tasks";
-    this.historyHeading.hidden = panel === "history";
     this.root.dataset.searchPanel = panel;
 
     // 先转移焦点，让现有标题编辑器按原 focusout 规则收尾，再触发列表重绘。
@@ -113,7 +109,6 @@ export class ListSearchController {
     this.input.value = "";
     this.form.hidden = true;
     this.captureForm.hidden = false;
-    this.historyHeading.hidden = false;
     delete this.root.dataset.searchPanel;
     this.#emit();
     if (restoreFocus) {

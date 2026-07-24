@@ -88,7 +88,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
-          releaseName: 代办 v__VERSION__
+          releaseName: 待办 v__VERSION__
           releaseBody: ${{ steps.changelog.outputs.releaseBody }}
           releaseDraft: true
           prerelease: false

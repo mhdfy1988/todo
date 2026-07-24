@@ -139,7 +139,7 @@ mod tests {
         let directory =
             env::temp_dir().join(format!("todo-updater-metadata-test-{}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
-        let artifact = directory.join("代办_0.1.0_x64-setup.exe");
+        let artifact = directory.join("待办_0.1.0_x64-setup.exe");
         let metadata_path = directory.join("latest.json");
         let signature = "encoded-signature";
         let entry = json!({
@@ -174,7 +174,7 @@ mod tests {
     fn metadata_rejects_an_asset_url_outside_the_repository() {
         assert!(!is_expected_download_url(
             "https://api.github.com/repos/other/todo/releases/assets/485644281",
-            "代办_0.1.0_x64-setup.exe"
+            "待办_0.1.0_x64-setup.exe"
         ));
     }
 }

@@ -7,10 +7,10 @@ use tauri::{
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 pub(crate) fn install(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let show = MenuItem::with_id(app, "show", "打开代办", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", "打开待办", true, None::<&str>)?;
     let hide = MenuItem::with_id(app, "hide", "隐藏到托盘", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, "quit", "退出代办", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "退出待办", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &hide, &separator, &quit])?;
     let icon = app
         .default_window_icon()
@@ -19,7 +19,7 @@ pub(crate) fn install(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>
 
     TrayIconBuilder::with_id("zuoban-main-tray")
         .icon(icon)
-        .tooltip("代办")
+        .tooltip("待办")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| {

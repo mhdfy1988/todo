@@ -62,7 +62,8 @@ export class SubtaskController {
       row.classList.toggle("has-expanded-subtasks", expanded);
       const progress = row.querySelector(":scope > .task-main .subtask-progress-button");
       if (progress) progress.setAttribute("aria-expanded", String(expanded));
-      const addTrigger = row.querySelector(":scope > .subtask-add-trigger");
+      const taskActions = row.querySelector(":scope > .task-actions");
+      const addTrigger = taskActions?.querySelector(".subtask-add-trigger");
       if (addTrigger) {
         addTrigger.hidden = this.isSearchActive();
         addTrigger.disabled = this.addingParentId === parentTaskId || !this.canMutate();

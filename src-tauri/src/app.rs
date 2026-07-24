@@ -105,5 +105,5 @@ pub(crate) fn run() {
             _ => {}
         })
         .run(tauri::generate_context!())
-        .expect("代办桌面悬浮窗口启动失败");
+        .expect("待办桌面悬浮窗口启动失败");
 }

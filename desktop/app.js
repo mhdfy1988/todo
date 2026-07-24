@@ -36,7 +36,6 @@ const searchController = new ListSearchController({
   searchAction: document.querySelector("#searchAction"),
   captureForm,
   taskTitleInput,
-  historyHeading: document.querySelector("#historyHeading"),
   historyBackButton: document.querySelector("#historyBackButton"),
   menuButton: document.querySelector("#moreMenuButton"),
   onChange: (searchState) => {
@@ -327,6 +326,7 @@ async function handleAction({
       await updateController.handleAction();
       return;
     case "copy-weekly-completions":
+      shellController.closeMenu();
       await weeklyCompletionController.copyCurrentWeek();
       return;
     case "complete-task": {

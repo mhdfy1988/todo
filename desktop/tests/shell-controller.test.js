@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { ShellController } from "../app/shell-controller.js";
 
-test("界面壳在待办与完成记录之间切换", () => {
+test("界面壳在待办与已完成之间切换", () => {
   const root = { dataset: {} };
   const menu = { open: true };
   const search = createSearchHarness();
@@ -33,7 +33,7 @@ test("界面壳在待办与完成记录之间切换", () => {
   ]);
 });
 
-test("Esc 依次关闭更多菜单、搜索、完成记录，再交还窗口控制器", () => {
+test("Esc 依次关闭更多菜单、搜索、已完成，再交还窗口控制器", () => {
   const root = { dataset: {} };
   const menu = { open: false };
   const search = createSearchHarness();

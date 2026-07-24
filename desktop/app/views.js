@@ -203,6 +203,7 @@ export class LedgerView {
       const item = this.document.createElement("li");
       const checkbox = this.document.createElement("input");
       const main = this.document.createElement("div");
+      const taskActions = this.document.createElement("div");
       const title = this.document.createElement("button");
       const progress = this.document.createElement("button");
       const addSubtask = this.document.createElement("button");
@@ -220,6 +221,7 @@ export class LedgerView {
       checkbox.dataset.taskId = task.id;
       checkbox.setAttribute("aria-label", `完成：${task.title}`);
       main.className = "task-main";
+      taskActions.className = "task-actions";
       title.type = "button";
       title.className = "task-title";
       title.dataset.taskId = task.id;
@@ -279,6 +281,7 @@ export class LedgerView {
       handleMark.setAttribute("aria-hidden", "true");
       handleMark.textContent = "⠿";
       handle.append(handleMark);
+      taskActions.append(addSubtask, remove, handle);
       subtaskList.id = `subtasks-${task.id}`;
       subtaskList.className = "subtask-list";
       subtaskList.hidden = true;
@@ -289,7 +292,7 @@ export class LedgerView {
       visibleSubtasks.forEach((subtask) => {
         subtaskList.append(this.#createSubtaskRow(subtask, task, query, searching));
       });
-      item.append(checkbox, main, addSubtask, remove, handle, subtaskList);
+      item.append(checkbox, main, taskActions, subtaskList);
       this.taskList.append(item);
     });
   }
@@ -298,6 +301,7 @@ export class LedgerView {
     const item = this.document.createElement("li");
     const checkbox = this.document.createElement("input");
     const title = this.document.createElement("button");
+    const subtaskActions = this.document.createElement("div");
     const remove = this.document.createElement("button");
     const handle = this.document.createElement("button");
     const handleMark = this.document.createElement("span");
@@ -331,6 +335,7 @@ export class LedgerView {
       ? `已完成子代办：${subtask.title}`
       : `修改子代办：${subtask.title}`);
     title.disabled = completed;
+    subtaskActions.className = "subtask-actions";
     remove.type = "button";
     remove.className = "delete-subtask-button";
     remove.dataset.action = "delete-task";
@@ -354,7 +359,8 @@ export class LedgerView {
     handleMark.setAttribute("aria-hidden", "true");
     handleMark.textContent = "⠿";
     handle.append(handleMark);
-    item.append(checkbox, title, remove, handle);
+    subtaskActions.append(remove, handle);
+    item.append(checkbox, title, subtaskActions);
     return item;
   }
 

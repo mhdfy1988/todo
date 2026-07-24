@@ -90,7 +90,6 @@ test("搜索控制器打开待办搜索、接收输入并由取消按钮关闭",
   assert.deepEqual(harness.controller.state, { panel: "tasks", query: "" });
   assert.equal(harness.form.hidden, false);
   assert.equal(harness.captureForm.hidden, true);
-  assert.equal(harness.historyHeading.hidden, false);
   assert.equal(harness.root.dataset.searchPanel, "tasks");
   assert.equal(harness.label.textContent, "搜索待办");
   assert.equal(harness.input.placeholder, "搜索待办");
@@ -108,7 +107,6 @@ test("搜索控制器打开待办搜索、接收输入并由取消按钮关闭",
   assert.deepEqual(harness.controller.state, { panel: null, query: "" });
   assert.equal(harness.form.hidden, true);
   assert.equal(harness.captureForm.hidden, false);
-  assert.equal(harness.historyHeading.hidden, false);
   assert.equal("searchPanel" in harness.root.dataset, false);
   assert.equal(harness.taskTitleInput.focusCount, 1);
   assert.equal(harness.controller.close(), false);
@@ -125,18 +123,17 @@ test("待办输入不可聚焦时取消搜索回到更多菜单按钮", () => {
   assert.equal(harness.menuButton.focusCount, 1);
 });
 
-test("完成记录搜索使用对应文案、列表关联和返回焦点", () => {
+test("已完成搜索使用对应文案、列表关联和返回焦点", () => {
   const harness = createSearchHarness();
 
   harness.controller.setPanel("history");
-  assert.equal(harness.searchAction.textContent, "搜索完成记录");
-  assert.equal(harness.searchAction.getAttribute("aria-label"), "搜索完成记录");
+  assert.equal(harness.searchAction.textContent, "搜索已完成");
+  assert.equal(harness.searchAction.getAttribute("aria-label"), "搜索已完成");
 
   harness.controller.open();
   assert.deepEqual(harness.controller.state, { panel: "history", query: "" });
   assert.equal(harness.captureForm.hidden, false);
-  assert.equal(harness.historyHeading.hidden, true);
-  assert.equal(harness.input.placeholder, "搜索完成记录");
+  assert.equal(harness.input.placeholder, "搜索已完成");
   assert.equal(harness.input.getAttribute("aria-controls"), "historyList");
 
   harness.controller.close();
@@ -217,7 +214,6 @@ function createSearchHarness() {
   const searchAction = createElement();
   const captureForm = createElement();
   const taskTitleInput = createElement();
-  const historyHeading = createElement();
   const historyBackButton = createElement();
   const menuButton = createElement();
   const changes = [];
@@ -230,7 +226,6 @@ function createSearchHarness() {
     searchAction,
     captureForm,
     taskTitleInput,
-    historyHeading,
     historyBackButton,
     menuButton,
     onChange: (state) => changes.push({ ...state }),
@@ -245,7 +240,6 @@ function createSearchHarness() {
     searchAction,
     captureForm,
     taskTitleInput,
-    historyHeading,
     historyBackButton,
     menuButton,
     changes,

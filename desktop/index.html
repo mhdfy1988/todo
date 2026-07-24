@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#00000000">
-  <title>代办</title>
+  <title>待办</title>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./app.js"></script>
 </head>
@@ -12,14 +12,22 @@
   <main id="desktopRoot" class="desktop-root">
     <section class="surface expanded" data-surface="expanded" aria-label="展开任务面板">
       <header class="window-bar" data-tauri-drag-region>
-        <span class="brand-dot" aria-hidden="true"></span>
-        <strong>代办</strong>
+        <span class="window-context-title task-window-title">
+          <span class="brand-dot" aria-hidden="true"></span>
+          <strong id="appTitle">待办</strong>
+        </span>
+        <button id="historyBackButton" class="window-context-title history-window-title" type="button" data-action="show-tasks" aria-label="返回待办">
+          <span class="window-back-icon" aria-hidden="true">‹</span>
+          <strong id="historyTitle">已完成</strong>
+        </button>
         <span class="window-actions">
           <button type="button" class="icon-button" data-action="capsule" aria-label="收起成当前任务胶囊">—</button>
           <details id="moreMenu" class="more-menu">
             <summary id="moreMenuButton" aria-label="更多操作">···</summary>
             <div class="menu-popover">
               <button id="searchAction" type="button" data-action="search" aria-keyshortcuts="Control+F">搜索待办</button>
+              <button id="copyWeeklyCompletionsButton" type="button" data-action="copy-weekly-completions">复制本周完成</button>
+              <div class="menu-separator" role="separator"></div>
               <button type="button" data-action="hide">隐藏到托盘</button>
               <button id="updateAction" type="button" data-action="update" disabled>检查更新</button>
               <button type="button" data-action="diagnostics">检查本地数据</button>
@@ -52,18 +60,22 @@
           <p id="taskOrderStatus" class="sr-only" aria-live="polite"></p>
           <p id="taskOrderHelp" class="sr-only">拖动调整顺序，或在排序按钮上按 Alt 加上下方向键移动。</p>
 
-          <button id="historyLink" type="button" class="history-link" data-action="show-history" hidden>
-            <span>完成记录</span>
-            <span><b id="historyCount">0</b><i aria-hidden="true">›</i></span>
-          </button>
+          <div id="historyLink" class="history-link" hidden>
+            <button
+              id="historyOpenButton"
+              type="button"
+              class="history-open-button"
+              data-action="show-history"
+              aria-label="查看已完成"
+            >
+              <span>已完成</span>
+              <b id="historyCount">0</b>
+              <i aria-hidden="true">›</i>
+            </button>
+          </div>
         </section>
 
         <section class="panel-view history-view" aria-labelledby="historyTitle">
-          <header id="historyHeading" class="panel-heading">
-            <button id="historyBackButton" type="button" data-action="show-tasks" aria-label="返回待办">←</button>
-            <strong id="historyTitle">完成记录</strong>
-            <button id="copyWeeklyCompletionsButton" class="heading-text-action" type="button" data-action="copy-weekly-completions">复制本周</button>
-          </header>
           <ol id="historyList" class="history-list"></ol>
         </section>
       </div>

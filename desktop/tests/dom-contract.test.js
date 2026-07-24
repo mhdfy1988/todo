@@ -31,9 +31,10 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
     "listSearchStatus",
     "searchAction",
     "updateAction",
+    "appTitle",
     "historyLink",
+    "historyOpenButton",
     "historyCount",
-    "historyHeading",
     "historyBackButton",
     "copyWeeklyCompletionsButton",
     "historyList",
@@ -65,6 +66,45 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
   actions.forEach((action) => {
     assert.match(html, new RegExp(`data-action="${action}"`));
   });
+  const windowBar = html.match(/<header class="window-bar"[\s\S]*?<\/header>/)?.[0];
+  assert.ok(windowBar, "缺少顶部窗口标题栏");
+  assert.match(
+    windowBar,
+    /id="historyBackButton"[\s\S]*?<strong id="historyTitle">已完成<\/strong>/,
+    "已完成页的返回入口与标题应合并进顶部窗口标题栏",
+  );
+  const menu = windowBar.match(/<div class="menu-popover">[\s\S]*?<\/div>/)?.[0];
+  assert.ok(menu, "缺少更多菜单");
+  assert.match(
+    menu,
+    /id="copyWeeklyCompletionsButton"[^>]*>复制本周完成<\/button>/,
+    "复制本周完成应收进更多菜单",
+  );
+  assert.match(
+    styles,
+    /body\[data-panel="history"\]\s+#copyWeeklyCompletionsButton\s*\{\s*display:\s*block;/,
+    "复制本周完成只应在已完成页的更多菜单中出现",
+  );
+  const historyView = html.match(/<section class="panel-view history-view"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(historyView, "缺少已完成列表页");
+  assert.doesNotMatch(historyView, /panel-heading|copyWeeklyCompletionsButton/);
+  const historyLink = html.match(/<div id="historyLink"[\s\S]*?<\/div>/)?.[0];
+  assert.ok(historyLink, "缺少待办页底部的已完成入口");
+  assert.doesNotMatch(
+    historyLink.match(/^<div[^>]*>/)?.[0] ?? "",
+    /data-action=/,
+    "已完成整行不能作为点击入口",
+  );
+  assert.match(
+    historyLink,
+    /id="historyOpenButton"[\s\S]*?data-action="show-history"[\s\S]*?<span>已完成<\/span>[\s\S]*?id="historyCount"/,
+    "已完成、数量和箭头应组成右侧紧凑入口",
+  );
+  assert.match(
+    styles,
+    /\.history-link\s*\{[^}]*justify-content:\s*flex-end;/,
+    "已完成标签应与数量和箭头组成靠右的一组",
+  );
   const capsule = html.match(/<section class="surface capsule"[\s\S]*?<\/section>/)?.[0];
   assert.ok(capsule, "缺少当前任务胶囊");
   assert.ok(
@@ -81,14 +121,15 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
   assert.doesNotMatch(views, /undo\.textContent = "撤销"/);
   assert.match(styles, /\.history-copy b\s*\{[^}]*flex:\s*1;[^}]*text-overflow:\s*ellipsis;/s);
   assert.match(styles, /\.history-copy time\s*\{[^}]*margin-left:\s*auto;[^}]*white-space:\s*nowrap;/s);
-  assert.match(styles, /\.panel-heading \.heading-text-action\s*\{[^}]*width:\s*auto;[^}]*margin-left:\s*auto;[^}]*font-size:\s*10px;/s);
+  assert.match(styles, /\.history-window-title\s*\{[^}]*pointer-events:\s*auto;/s);
+  assert.doesNotMatch(styles, /\.panel-heading|\.heading-text-action/);
   assert.match(styles, /\.history-list button\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px;[^}]*border:\s*0;/s);
   assert.match(styles, /\.capture-form button\s*\{[^}]*color:\s*var\(--soft\);[^}]*font-weight:\s*600;/s);
   assert.match(styles, /\.capture-form button:not\(:disabled\):hover\s*\{[^}]*background:\s*var\(--wash\);[^}]*color:\s*var\(--ink\);/s);
   assert.doesNotMatch(styles, /\.capture-form button\s*\{[^}]*background:\s*var\(--dark\)/s);
   assert.match(
     app,
-    /case "copy-weekly-completions":\s*await weeklyCompletionController\.copyCurrentWeek\(\);\s*return;/s,
+    /case "copy-weekly-completions":\s*shellController\.closeMenu\(\);\s*await weeklyCompletionController\.copyCurrentWeek\(\);\s*return;/s,
   );
   assert.doesNotMatch(app, /button\.checked = false|incompleteCount|revealFirstPending\(taskId/);
   assert.match(app, /const operation = await session\.completeTask\(taskId\);/);
@@ -184,7 +225,7 @@ test("列表搜索保持独立输入、纯过滤与可访问快捷键契约", as
   assert.match(searchAction, /aria-keyshortcuts="Control\+F"/);
 
   const searchForm = html.match(/<form\s+id="listSearchForm"[\s\S]*?<\/form>/)?.[0];
-  assert.ok(searchForm, "缺少待办与完成记录共享的搜索表单");
+  assert.ok(searchForm, "缺少待办与已完成共享的搜索表单");
   assert.match(searchForm, /role="search"/);
   assert.match(searchForm, /id="listSearchLabel"[^>]+for="listSearchInput"/);
   assert.match(searchForm, /id="listSearchInput"[^>]+type="search"/);
@@ -235,15 +276,10 @@ test("列表搜索保持独立输入、纯过滤与可访问快捷键契约", as
     /case "search":\s*shellController\.closeMenu\(\);\s*searchController\.open\(/s,
     "从更多菜单进入搜索前必须关闭菜单",
   );
-
-  const filteredTaskRow = styles.match(
-    /body\[data-search-panel="tasks"\]\s+\.task-row\s*\{([^}]*)\}/s,
-  );
-  assert.ok(filteredTaskRow, "缺少待办搜索态布局规则");
-  assert.match(
-    filteredTaskRow[1],
-    /grid-template-columns:\s*20px\s+minmax\(0,\s*1fr\)\s+26px\s*;/,
-    "搜索态必须移除排序列，只保留完成、标题和删除三列",
+  assert.doesNotMatch(
+    styles,
+    /body\[data-search-panel="tasks"\]\s+\.(?:task-row|subtask-row)\s*\{[^}]*grid-template-columns:/s,
+    "搜索态应复用统一的三列布局，不能复制一套网格列定义",
   );
 });
 
