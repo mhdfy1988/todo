@@ -140,6 +140,41 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
     /\.history-list > li:not\(\.history-group\) > \.history-copy,\s*\.history-group-copy\s*\{[^}]*padding-left:\s*8px;/s,
     "所有顶层完成记录应使用相同内缩，只有展开后的子项继续体现层级",
   );
+  assert.doesNotMatch(styles, /--nested-surface|var\(--nested-surface\)/);
+  assert.match(styles, /--nested-track:\s*rgba\(98,\s*104,\s*112,\s*0\.28\);/);
+  assert.match(styles, /--nested-hover:\s*rgba\(98,\s*104,\s*112,\s*0\.07\);/);
+  assert.match(
+    styles,
+    /\.subtask-list\s*\{[^}]*width:\s*auto;[^}]*margin:\s*1px 1px 5px 12px;[^}]*padding:\s*2px 0 3px 13px;[^}]*list-style:\s*none;/s,
+    "待办子项应使用透明缩进区域，同时保持原有内容对齐",
+  );
+  assert.doesNotMatch(styles, /\.subtask-list\s*\{[^}]*background\s*:/s);
+  assert.match(
+    styles,
+    /\.history-subtask-list\s*\{[^}]*margin:\s*1px 1px 5px 12px;[^}]*padding:\s*2px 0 3px 14px;[^}]*list-style:\s*none;/s,
+    "已完成子项应复用同一种透明缩进语言",
+  );
+  assert.doesNotMatch(styles, /\.history-subtask-list\s*\{[^}]*background\s*:/s);
+  assert.match(
+    styles,
+    /\.subtask-list::before,\s*\.history-subtask-list::before\s*\{[^}]*left:\s*6px;[^}]*top:\s*7px;[^}]*bottom:\s*7px;[^}]*width:\s*2px;[^}]*background:\s*var\(--nested-track\);/s,
+    "两页都应使用只存在于子项组块内部的短轨道",
+  );
+  assert.match(
+    styles,
+    /\.subtask-row,\s*\.history-subtask-row\s*\{[^}]*transition:\s*background-color 120ms ease;/s,
+  );
+  assert.match(
+    styles,
+    /\.subtask-row:hover,\s*\.subtask-row:focus-within,\s*\.history-subtask-row:hover,\s*\.history-subtask-row:focus-within\s*\{[^}]*background-color:\s*var\(--nested-hover\);/s,
+    "子代办只在悬浮或键盘聚焦时显示轻量行级反馈",
+  );
+  assert.match(
+    styles,
+    /\.history-subtask-row\s*\{[^}]*padding:\s*0 2px 0 8px;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 28px;/s,
+    "已完成子项的悬浮区域应在内容前后保留呼吸空间",
+  );
+  assert.doesNotMatch(styles, /\.history-subtask-list::before\s*\{[^}]*left:\s*16px;/s);
   assert.doesNotMatch(styles, /\.history-disclosure::before/);
   assert.match(
     app,

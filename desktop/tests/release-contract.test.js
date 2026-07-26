@@ -4,6 +4,11 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import {
+  assertReleaseVersions,
+  collectReleaseVersions,
+} from "../../scripts/check-release-version.mjs";
+
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 function read(relativePath) {
@@ -11,8 +16,10 @@ function read(relativePath) {
 }
 
 const packageJson = JSON.parse(read("package.json"));
+const packageLock = JSON.parse(read("package-lock.json"));
 const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json"));
 const cargoToml = read("src-tauri/Cargo.toml");
+const cargoLock = read("src-tauri/Cargo.lock");
 const workflow = read(".github/workflows/release.yml");
 const capability = JSON.parse(read("src-tauri/capabilities/default.json"));
 
@@ -24,16 +31,53 @@ function readWorkflowStep(name) {
   return workflow.slice(start, next === -1 ? workflow.length : next);
 }
 
-test("三个发布版本和 Windows NSIS 目标保持一致", () => {
-  const cargoVersion = cargoToml.match(/^version\s*=\s*"([^"]+)"$/m)?.[1];
-  assert.equal(packageJson.version, tauriConfig.version);
-  assert.equal(packageJson.version, cargoVersion);
+test("发布版本、锁文件和 Windows NSIS 目标保持一致", () => {
+  const versions = collectReleaseVersions({
+    packageJson,
+    packageLock,
+    tauriConfig,
+    cargoToml,
+    cargoLock,
+  });
+
+  assertReleaseVersions(versions, packageJson.version);
   assert.equal(tauriConfig.bundle.active, true);
   assert.deepEqual(tauriConfig.bundle.targets, ["nsis"]);
   assert.equal(tauriConfig.bundle.createUpdaterArtifacts, true);
   assert.equal(tauriConfig.bundle.windows.nsis.installMode, "currentUser");
   assert.equal(packageJson.scripts["desktop:build"], "tauri build --no-bundle");
   assert.equal(packageJson.scripts["desktop:bundle:windows"], "tauri build --bundles nsis");
+});
+
+test("发布版本门禁会指出锁文件中的具体不一致来源", () => {
+  const versions = collectReleaseVersions({
+    packageJson,
+    packageLock,
+    tauriConfig,
+    cargoToml,
+    cargoLock,
+  });
+  const lockSources = [
+    "package-lock.json#version",
+    'package-lock.json#packages[""].version',
+    "src-tauri/Cargo.lock#package:zuoban-desktop-spike",
+  ];
+
+  for (const source of lockSources) {
+    const mismatchedVersions = new Map(versions);
+    mismatchedVersions.set(source, "9.9.9");
+
+    assert.throws(
+      () => assertReleaseVersions(mismatchedVersions, packageJson.version),
+      (error) => {
+        assert.equal(
+          error.message,
+          `发布版本不一致：${source} 为 9.9.9，期望 ${packageJson.version}`,
+        );
+        return true;
+      },
+    );
+  }
 });
 
 test("更新源、公钥和 Rust 插件进入首个安装版", () => {

@@ -6,10 +6,18 @@
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-07-27
+
 ### Changed
 
 - 统一待办页与已完成页的父子待办折叠入口：两边都通过右侧进度信息和箭头展开或收起，并在页面切换后保留用户选择的展开状态。
 - 调整已完成列表的顶层内容对齐，移除父子完成组左侧独立且突兀的折叠箭头。
+- 将两页子列表统一为透明缩进区域与只覆盖子项范围的短轨道，移除贯穿子项的横向分隔感。
+- 子代办在鼠标悬浮或键盘聚焦时显示轻量行级反馈，平时继续保持透明。
+
+### Fixed
+
+- 为已完成子项的悬浮区域补足前后留白，避免高亮背景紧贴内容。
 
 ## [0.1.4] - 2026-07-24
 
@@ -74,7 +82,8 @@
 - 支持完成记录与撤销、当前页面搜索、桌面胶囊、系统托盘和应用内更新。
 - 使用本地 SQLite 事件账本保存任务、完成历史、奖励和幂等命令回执。
 
-[Unreleased]: https://github.com/mhdfy1988/todo/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/mhdfy1988/todo/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/mhdfy1988/todo/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/mhdfy1988/todo/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/mhdfy1988/todo/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/mhdfy1988/todo/compare/v0.1.1...v0.1.2
