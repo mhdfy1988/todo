@@ -1,19 +1,19 @@
 # 待办：Windows 发布与自动更新 v0.1
 
-> 状态：`v0.1.5` 发布候选已完成本机试装，等待 GitHub Actions 生成并验证正式签名资产；当前公开 Latest 与 Windows 正式安装基线均为 `v0.1.4`
+> 状态：`v0.1.5` 已按标准 CHANGELOG 和签名闭环正式发布为公开 Latest；当前 Windows 正式安装基线仍为 `v0.1.4`
 > 更新时间：2026-07-27
-> 适用版本：当前真实安装基线 → `0.1.5`
+> 适用版本：`0.1.4 → 0.1.5`
 
 ## 1. 当前结论
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| Windows x64 NSIS 安装器 | 已实现并完成线上验证 | `v0.1.4` 正式 `setup.exe` 已生成、匿名公开下载并核对摘要 |
-| Tauri 更新签名 | 已实现并完成线上验证 | `v0.1.4` `.sig` 已与 `latest.json` 对照，并由客户端内嵌公钥验签 |
+| Windows x64 NSIS 安装器 | 已实现并完成线上验证 | `v0.1.5` 正式 `setup.exe` 已生成、匿名公开下载并核对摘要 |
+| Tauri 更新签名 | 已实现并完成线上验证 | `v0.1.5` `.sig` 已与 `latest.json` 对照，并由客户端内嵌公钥验签 |
 | 应用内检查与安装 | 已实现 | normal 模式启动检查、24 小时间隔、菜单手动检查和用户点击安装 |
 | smoke 更新网络隔离 | 已实现 | 前端不启动更新控制器，Rust 在访问网络前再次拒绝 |
-| GitHub Actions 发布 | 已实现并完成线上验证 | 支持手动触发和 `v*` 标签触发；`v0.1.4` 的完整工作流已成功 |
-| 当前 GitHub Release | 已完成 | `v0.1.4` 已发布为 Latest，安装器、`.sig` 与 `latest.json` 共 3 项资产 |
+| GitHub Actions 发布 | 已实现并完成线上验证 | 支持手动触发和 `v*` 标签触发；`v0.1.5` 的完整工作流已成功 |
+| 当前 GitHub Release | 已完成 | `v0.1.5` 已发布为 Latest，安装器、`.sig` 与 `latest.json` 共 3 项资产 |
 | `latest.json` 线上读取 | 已验证 | 已从公开 Latest 地址匿名读取，并按其中地址下载、验签安装器及核对资产摘要 |
 | 当前用户安装基线 | 已验证 | 2026-07-27 重新读取 Windows 卸载注册信息：“待办”版本为 `0.1.4`，安装位置为 `D:\待办`；该事实只证明当前版本，不证明此前安装方式 |
 | `v0.1.2` 正式版 | 已发布 | 新增一级子代办与 schema v5；应用标识、更新端点与签名公钥保持不变，数据库会从 schema v4 受检迁移到 v5 |
@@ -21,9 +21,10 @@
 | `0.1.4` 功能候选 | 已通过本机试装 | 使用“待办测试版”隔离身份验证本版全部功能；试装包元数据仍为 `0.1.3`，确认发布后五处版本事实才统一提升到 `0.1.4`，正式资产由 Actions 重新构建 |
 | `v0.1.4` 正式版 | 已发布 | 正式产品名改为“待办”，并收口已完成页、任务操作区、父行布局与软件图标；identifier、`zuoban` 数据目录、更新端点、签名公钥和 schema v5 保持不变 |
 | `0.1.5` 功能候选 | 已通过本机试装 | 统一两页父子折叠入口，并以透明缩进、短轨道、行级悬浮与已完成子项留白收口视觉；schema、identifier、更新端点和签名公钥均不变 |
-| 标准更新日志 | 已接入发布门禁 | 根目录 `CHANGELOG.md` 遵循 Keep a Changelog；`0.1.5` 已收口到带实际日期的正式版本段，等待正式发布 |
+| `v0.1.5` 正式版 | 已发布 | 发布工作流完成版本、测试、格式、静态检查、草稿资产、更新签名、元数据、正文与公开状态闭环验证 |
+| 标准更新日志 | 已接入发布门禁 | 根目录 `CHANGELOG.md` 遵循 Keep a Changelog；`0.1.5` 已收口到带实际日期的正式版本段，并与 Release 正文及 `latest.json` notes 一致 |
 | schema v5 降级 | 不支持 | 正式 `0.1.2` 迁移后的 normal 数据不能交给 `0.1.1` 的 v4 客户端读取；安装回退不等于数据回退 |
-| `0.1.4 → 0.1.5` 应用内升级 | 待执行 | `v0.1.4` 旧目标未在 Latest 切换前形成可确认闭环；发布后从当前已安装的 `0.1.4` 验证发现、安装重启与数据保留 |
+| `0.1.4 → 0.1.5` 应用内升级 | 待执行 | `v0.1.4` 旧目标未在 Latest 切换前形成可确认闭环；从当前已安装的 `0.1.4` 验证发现、安装重启与数据保留 |
 | Windows Authenticode | 暂未配置 | 安装器可能触发 Microsoft Defender SmartScreen 提示 |
 
 ## 2. 目标与边界
@@ -113,7 +114,7 @@ UpdateController
 工作流按以下顺序执行：
 
 1. 安装锁定的 Node 依赖与 Rust stable 工具链。
-2. 校验 `package.json`、`src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml` 版本一致；标签触发时还要求标签等于 `v<版本号>`。
+2. 校验 `package.json`、`package-lock.json` 顶层与根包、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock` 根包版本一致；标签触发时还要求标签等于 `v<版本号>`。
 3. 读取根目录 `CHANGELOG.md`：文件必须保留 `Unreleased`，当前版本必须存在唯一的 `## [x.y.z] - YYYY-MM-DD` 段，且只使用 `Added`、`Changed`、`Deprecated`、`Removed`、`Fixed`、`Security` 标准分类。若候选内容还没有从 `Unreleased` 收口，发布直接失败。
 4. 查询同版本公开 Release；若已经发布则失败快，禁止覆盖既有安装器、签名和 `latest.json`。失败后的草稿允许使用同版本重试。
 5. 运行统一门禁、Rust 格式检查和 Clippy。
@@ -128,6 +129,8 @@ UpdateController
 `v0.1.3` 已通过 [Actions #30031343307](https://github.com/mhdfy1988/todo/actions/runs/30031343307) 完成正式发布，Release、标签与工作流均指向提交 `529a53f6e7d3d9e8eed91f4c2cddcfae137b82a6`。公开资产共 3 项；安装器 SHA-256 为 `230FDD69E0B4D5E49854EF711C18B9A0D8E289713EFAE325AC8B42D713D68DFE`。匿名读取 Latest 元数据、从其 API 资产地址下载安装器、对照 `.sig` 与内嵌签名、客户端公钥验签、Release digest 和 CHANGELOG 正文逐字核对均通过。
 
 `v0.1.4` 已通过 [Actions #30064634767](https://github.com/mhdfy1988/todo/actions/runs/30064634767) 完成正式发布，Release、轻量标签和发布工作流均指向提交 `d9755121ad3ab7b0952ed9940361abe4a248b443`。公开资产共 3 项；安装器大小为 `3,200,349` 字节，SHA-256 为 `D9B4550F2DF67C0045C2454D599E0A04ACA5D364452D0134B1D8203C2DCA9CC4`。工作流内验签、`latest.json` 下载哈希、草稿正文和最终发布状态均通过；发布后又以匿名地址下载 `latest.json`、安装器与 `.sig`，并使用客户端内嵌公钥独立验签成功。
+
+`v0.1.5` 已通过 [Actions #30211980913](https://github.com/mhdfy1988/todo/actions/runs/30211980913) 完成正式发布，[Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.5)、轻量标签和发布工作流均指向提交 `533e3450e03455871202f31a70b4b74fc9bf1acb`，并已成为公开 Latest。公开资产共 3 项：`latest.json` 为 `1,853` 字节、SHA-256 为 `DD70AF84AFDC212E81157D4BA5D7262ADF086DD581C0E459EF065B4B4F6A1271`；`_0.1.5_x64-setup.exe` 为 `3,199,710` 字节、SHA-256 为 `FF6632FD35A65F383DCB9E02E5FB24F608644100A236C844975C493D79991574`；对应 `.sig` 为 `416` 字节、SHA-256 为 `8C0A508F3BBB93215D50649DBEB5E9E0330EA02492768C5640EC58D3BA54829E`。发布后再次从公开地址匿名下载全部资产，并按 `latest.json` 中的 GitHub 资产 API 地址、使用 updater 同样的 `Accept: application/octet-stream` 头且不携带授权信息重新下载安装器；两种 Windows 平台映射、签名字段、公开资产摘要、客户端内嵌公钥验签、Release 正文和 CHANGELOG notes 均一致。
 
 ## 7. 发布密钥
 
@@ -166,9 +169,9 @@ GitHub Actions 只约定以下 Secrets 名称：
 - [x] 正式发布 `v0.1.3`，核对工作流运行提交、安装器、`.sig`、`latest.json`、Release 正文和公开 Latest。
 - [x] 不再把未形成闭环的 `v0.1.2 → v0.1.3` 当作当前验证目标；最新目标由 `v0.1.4` 取代。
 - [x] 正式发布 `v0.1.4`，核对工作流运行提交、安装器、`.sig`、`latest.json`、Release 正文和公开 Latest。
-- [ ] 正式发布 `v0.1.5`，核对工作流运行提交、安装器、`.sig`、`latest.json`、Release 正文和公开 Latest。
+- [x] 正式发布 `v0.1.5`，核对工作流运行提交、安装器、`.sig`、`latest.json`、Release 正文和公开 Latest。
 - [ ] 从当前已安装的 `v0.1.4` 完成一次“发现 `v0.1.5` → 用户点击安装 → 下载校验 → 安装重启”实机闭环。
 - [ ] 升级后核对 Windows 安装版本、“待办”名称、悬浮任务牌图标、已完成入口、原有父子数据与完成历史、托盘单实例和再次检查更新结果。
 - [ ] 记录 SmartScreen 实际表现；若进入公开分发，再单独评估 Authenticode 证书。
 
-当前准确口径是“`v0.1.5` 发布候选已完成本机试装并收口标准 CHANGELOG，当前公开 Latest 与 Windows 正式安装基线均为 `v0.1.4`；正式安装器、更新签名和 `latest.json` 必须由 GitHub Actions 使用既有更新私钥重新生成、验签并在草稿中核对，全部通过后才能发布；发布后从真实 `v0.1.4` 基线验证应用内更新”。
+当前准确口径是“`v0.1.5` 已由 GitHub Actions 从提交 `533e3450e03455871202f31a70b4b74fc9bf1acb` 生成正式安装器、更新签名和 `latest.json`，草稿中的签名、元数据、更新正文和资产摘要全部通过后才转为公开 Latest；发布后再次完成匿名下载与客户端公钥独立验签。当前 Windows 正式安装基线仍为 `v0.1.4`，下一步从该真实基线验证应用内发现、安装重启与数据保留”。
