@@ -121,6 +121,32 @@ test("index 只暴露任务主线，并保留必要的界面契约", async () =>
   assert.doesNotMatch(views, /undo\.textContent = "撤销"/);
   assert.match(styles, /\.history-copy b\s*\{[^}]*flex:\s*1;[^}]*text-overflow:\s*ellipsis;/s);
   assert.match(styles, /\.history-copy time\s*\{[^}]*margin-left:\s*auto;[^}]*white-space:\s*nowrap;/s);
+  assert.match(
+    views,
+    /copy\.append\(title, disclosure\);\s*summary\.append\(copy\);/s,
+    "待办页和已完成页都应由进度数字与箭头组成折叠入口",
+  );
+  assert.doesNotMatch(views, /history-group-meta/);
+  assert.match(
+    styles,
+    /\.subtask-progress-button,\s*\.history-disclosure\s*\{[^}]*display:\s*inline-flex;[^}]*font-size:\s*9px;/s,
+  );
+  assert.match(
+    styles,
+    /\.subtask-progress-button::after,\s*\.history-disclosure::after\s*\{[^}]*content:\s*"›";/s,
+  );
+  assert.match(
+    styles,
+    /\.history-list > li:not\(\.history-group\) > \.history-copy,\s*\.history-group-copy\s*\{[^}]*padding-left:\s*8px;/s,
+    "所有顶层完成记录应使用相同内缩，只有展开后的子项继续体现层级",
+  );
+  assert.doesNotMatch(styles, /\.history-disclosure::before/);
+  assert.match(
+    app,
+    /case "show-history":\s*subtaskController\.sync\(\);\s*shellController\.showHistory\(\);/s,
+    "切换页面时应保留用户已选择的子代办展开状态",
+  );
+  assert.doesNotMatch(app, /resetHistoryExpansion/);
   assert.match(styles, /\.history-window-title\s*\{[^}]*pointer-events:\s*auto;/s);
   assert.doesNotMatch(styles, /\.panel-heading|\.heading-text-action/);
   assert.match(styles, /\.history-list button\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px;[^}]*border:\s*0;/s);

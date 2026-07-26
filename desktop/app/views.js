@@ -67,11 +67,6 @@ export class LedgerView {
     if (this.lastState) this.render(this.lastState);
   }
 
-  resetHistoryExpansion() {
-    this.expandedHistoryGroupIds.clear();
-    if (this.lastState) this.render(this.lastState);
-  }
-
   toggleHistoryGroup(parentTaskId) {
     if (this.expandedHistoryGroupIds.has(parentTaskId)) {
       this.expandedHistoryGroupIds.delete(parentTaskId);
@@ -425,7 +420,6 @@ export class LedgerView {
     const disclosure = this.document.createElement("button");
     const copy = this.document.createElement("span");
     const title = this.document.createElement("b");
-    const meta = this.document.createElement("span");
     const undo = this.document.createElement("button");
     const children = this.document.createElement("ol");
     const searchExpanded = Boolean(group.searchExpanded);
@@ -443,15 +437,14 @@ export class LedgerView {
     copy.className = "history-copy history-group-copy";
     appendHighlightedText(this.document, title, group.title, query);
     title.title = group.title;
-    meta.className = "history-group-meta";
     const progress = `${group.completedCount}/${group.totalCount}`;
     if (group.parentCompletion) {
-      meta.textContent = `${progress} · ${formatTime(group.parentCompletion.occurredAtMs)}`;
+      disclosure.textContent = `${progress} · ${formatTime(group.parentCompletion.occurredAtMs)}`;
     } else {
-      meta.textContent = `${group.activeParent ? "进行中" : "已移除"} · ${progress}`;
+      disclosure.textContent = `${group.activeParent ? "进行中" : "已移除"} · ${progress}`;
     }
-    copy.append(title, meta);
-    summary.append(disclosure, copy);
+    copy.append(title, disclosure);
+    summary.append(copy);
     if (group.parentCompletion) {
       undo.type = "button";
       undo.dataset.action = "undo-completion";

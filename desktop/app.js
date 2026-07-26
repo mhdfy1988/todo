@@ -299,7 +299,6 @@ async function handleAction({
       shellController.showTasks();
       return;
     case "show-history":
-      ledgerView.resetHistoryExpansion();
       subtaskController.sync();
       shellController.showHistory();
       return;

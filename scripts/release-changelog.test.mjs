@@ -16,7 +16,9 @@ test("当前 CHANGELOG 使用标准结构并已收口 0.1.4", () => {
   const sections = parseChangelog(projectChangelog);
 
   assert.equal(sections[0].name, "Unreleased");
-  assert.equal(sections[0].body, "");
+  assert.match(sections[0].body, /^### Changed/m);
+  assert.match(sections[0].body, /统一待办页与已完成页的父子待办折叠入口/);
+  assert.match(sections[0].body, /移除父子完成组左侧独立且突兀的折叠箭头/);
   assert.equal(sections[1].name, "0.1.4");
   assert.equal(sections[1].date, "2026-07-24");
   assert.match(sections[1].body, /软件名称由“代办”更正为“待办”/);
