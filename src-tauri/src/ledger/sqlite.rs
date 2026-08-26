@@ -2,7 +2,8 @@ use super::{
     domain::{
         Clock, HierarchyPrecondition, IntegrityReport, LedgerError, LedgerMutation, LedgerSnapshot,
         MutationReceipt, RewardMutation, RewardTransaction, RewardType, StoredReceipt, SystemClock,
-        Task, TaskEvent, TaskEventType, TaskStatus, TaskWrite, WeeklyFacts, COMPLETION_REWARD,
+        Task, TaskEvent, TaskEventType, TaskPlacement, TaskStatus, TaskWrite, WeeklyFacts,
+        COMPLETION_REWARD,
     },
     service::{stored_receipt_from_json, LedgerStore},
 };
@@ -734,32 +735,48 @@ fn materialize_queue_position(
     transaction: &Transaction<'_>,
     write: &mut TaskWrite,
 ) -> Result<(), LedgerError> {
-    let (task, place_at_tail) = match write {
-        TaskWrite::Insert {
-            task,
-            place_at_tail,
-        }
-        | TaskWrite::Update {
-            task,
-            place_at_tail,
-            ..
-        } => (task, *place_at_tail),
+    let (task, placement, is_insert) = match write {
+        TaskWrite::Insert { task, placement } => (task, *placement, true),
+        TaskWrite::Update {
+            task, placement, ..
+        } => (task, *placement, false),
         TaskWrite::ReorderQueue { .. } | TaskWrite::ReorderSubtasks { .. } => return Ok(()),
     };
-    if !place_at_tail {
+    if placement == TaskPlacement::Preserve {
         return Ok(());
     }
     if task.status != TaskStatus::Pending || task.defer_until_ms.is_some() {
-        return Err(LedgerError::integrity("只有立即可执行的待办才能放入队尾"));
+        return Err(LedgerError::integrity(
+            "只有立即可执行的待办才能分配队列位置",
+        ));
     }
-    match task.parent_task_id.as_deref() {
-        None => {
-            if task.sibling_position.is_some() {
-                return Err(LedgerError::integrity("顶层待办不能携带同级位置"));
+    match placement {
+        TaskPlacement::Preserve => unreachable!(),
+        TaskPlacement::QueueHead | TaskPlacement::QueueTail => {
+            if task.parent_task_id.is_some()
+                || task.sibling_position.is_some()
+                || task.queue_position.is_some()
+            {
+                return Err(LedgerError::integrity("顶层待办的位置形态无效"));
             }
-            task.queue_position = Some(next_queue_position_in(transaction)?);
+            if placement == TaskPlacement::QueueHead {
+                if !is_insert {
+                    return Err(LedgerError::integrity("只有新建顶层待办才能放到队首"));
+                }
+                shift_queue_for_head_insert(transaction)?;
+                task.queue_position = Some(1);
+            } else {
+                task.queue_position = Some(next_queue_position_in(transaction)?);
+            }
         }
-        Some(parent_task_id) => {
+        TaskPlacement::SiblingTail => {
+            if !is_insert {
+                return Err(LedgerError::integrity("只有新建子代办才能追加到同级末尾"));
+            }
+            let parent_task_id = task
+                .parent_task_id
+                .as_deref()
+                .ok_or_else(|| LedgerError::integrity("子代办缺少父待办"))?;
             if task.queue_position.is_some()
                 || task.sibling_position.is_some()
                 || task.deadline_on.is_some()
@@ -772,12 +789,69 @@ fn materialize_queue_position(
     Ok(())
 }
 
+fn shift_queue_for_head_insert(transaction: &Transaction<'_>) -> Result<(), LedgerError> {
+    let max_position: i64 = transaction
+        .query_row(
+            "SELECT COALESCE(MAX(queue_position), 0) FROM tasks
+             WHERE status = 'pending' AND defer_until_ms IS NULL AND parent_task_id IS NULL",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| storage_error("读取队列最大位置失败", error))?;
+    if max_position == 0 {
+        return Ok(());
+    }
+    let offset = max_position
+        .checked_add(1)
+        .ok_or_else(|| LedgerError::integrity("队首插入临时位置计算溢出"))?;
+    transaction
+        .execute(
+            "UPDATE tasks SET queue_position = queue_position + ?1
+             WHERE status = 'pending' AND defer_until_ms IS NULL AND parent_task_id IS NULL",
+            [offset],
+        )
+        .map_err(|error| storage_error("移动队列到临时安全位置失败", error))?;
+    transaction
+        .execute(
+            "UPDATE tasks SET queue_position = queue_position - ?1 + 1
+             WHERE status = 'pending' AND defer_until_ms IS NULL AND parent_task_id IS NULL",
+            [offset],
+        )
+        .map_err(|error| storage_error("为新待办腾出队首位置失败", error))?;
+    Ok(())
+}
+
 fn validate_transition_preconditions(
     transaction: &Transaction<'_>,
     mutation: &LedgerMutation,
 ) -> Result<(), LedgerError> {
     validate_mutation_shape(mutation)?;
     validate_hierarchy_preconditions(transaction, &mutation.hierarchy_preconditions)?;
+    if let TaskWrite::Insert { task, placement } = &mutation.task_write {
+        let insertion_is_valid = match mutation.event.event_type {
+            TaskEventType::Created => {
+                *placement == TaskPlacement::QueueHead
+                    && task.parent_task_id.is_none()
+                    && task.sibling_position.is_none()
+                    && mutation.event.metadata.as_object().is_some_and(|metadata| {
+                        metadata.len() == 1
+                            && metadata
+                                .get("queuePlacement")
+                                .and_then(|value| value.as_str())
+                                == Some("head")
+                    })
+            }
+            TaskEventType::SubtaskCreated => {
+                *placement == TaskPlacement::SiblingTail && task.parent_task_id.is_some()
+            }
+            _ => false,
+        };
+        if !insertion_is_valid {
+            return Err(LedgerError::integrity(
+                "新建任务写入与创建事件的位置语义不一致",
+            ));
+        }
+    }
     match &mutation.task_write {
         TaskWrite::Insert { task, .. } | TaskWrite::Update { task, .. } => {
             if matches!(
@@ -908,12 +982,12 @@ fn validate_mutation_shape(mutation: &LedgerMutation) -> Result<(), LedgerError>
         return Ok(());
     }
 
-    let (expected_parent_version, parent_after, place_at_tail) = match &mutation.task_write {
+    let (expected_parent_version, parent_after, placement) = match &mutation.task_write {
         TaskWrite::Update {
             expected_version,
             task,
-            place_at_tail,
-        } => (*expected_version, task, *place_at_tail),
+            placement,
+        } => (*expected_version, task, *placement),
         _ => return Err(LedgerError::integrity("顶层完成事件必须对应单个父代办更新")),
     };
     let parent_shape_is_valid = parent_after.id == mutation.event.task_id
@@ -930,7 +1004,7 @@ fn validate_mutation_shape(mutation: &LedgerMutation) -> Result<(), LedgerError>
         && mutation.event.sequence.is_none()
         && mutation.event.reason.is_none()
         && mutation.event.reverses_event_id.is_none()
-        && !place_at_tail;
+        && placement == TaskPlacement::Preserve;
     if !parent_shape_is_valid {
         return Err(LedgerError::integrity("顶层完成写入与主事件形态不一致"));
     }
@@ -975,12 +1049,12 @@ fn validate_mutation_shape(mutation: &LedgerMutation) -> Result<(), LedgerError>
         .iter()
         .zip(expected_pending.iter())
     {
-        let (expected_version, child_after, place_at_tail) = match &companion.task_write {
+        let (expected_version, child_after, placement) = match &companion.task_write {
             TaskWrite::Update {
                 expected_version,
                 task,
-                place_at_tail,
-            } => (*expected_version, task, *place_at_tail),
+                placement,
+            } => (*expected_version, task, *placement),
             _ => return Err(LedgerError::integrity("级联完成子代办只能使用单任务更新")),
         };
         let event = &companion.event;
@@ -998,7 +1072,7 @@ fn validate_mutation_shape(mutation: &LedgerMutation) -> Result<(), LedgerError>
             && expected_version == expected.expected_version
             && child_after.version == expected_version + 1
             && child_after.updated_at_ms == mutation.event.occurred_at_ms
-            && !place_at_tail
+            && placement == TaskPlacement::Preserve
             && event.sequence.is_none()
             && event.event_type == TaskEventType::SubtaskCompleted
             && event.command_id == format!("cascade/{}", event.id)

@@ -12,36 +12,36 @@ const projectChangelog = readFileSync(
   "utf8",
 );
 
-test("当前 CHANGELOG 使用标准结构并已收口 0.1.5", () => {
+test("当前 CHANGELOG 使用标准结构并已收口 0.1.6", () => {
   const sections = parseChangelog(projectChangelog);
 
   assert.equal(sections[0].name, "Unreleased");
   assert.equal(sections[0].body, "");
-  assert.equal(sections[1].name, "0.1.5");
-  assert.equal(sections[1].date, "2026-07-27");
-  assert.match(sections[1].body, /统一待办页与已完成页的父子待办折叠入口/);
-  assert.match(sections[1].body, /透明缩进区域与只覆盖子项范围的短轨道/);
-  assert.match(sections[1].body, /鼠标悬浮或键盘聚焦时显示轻量行级反馈/);
-  assert.match(sections[1].body, /悬浮区域补足前后留白/);
-  assert.equal(sections[2].name, "0.1.4");
-  assert.equal(sections[2].date, "2026-07-24");
-  assert.match(sections[2].body, /软件名称由“代办”更正为“待办”/);
+  assert.equal(sections[1].name, "0.1.6");
+  assert.equal(sections[1].date, "2026-08-26");
+  assert.match(sections[1].body, /新建顶层待办默认插入列表最上方/);
+  assert.match(sections[1].body, /阻止正式桌面应用重复打开/);
+  assert.equal(sections[2].name, "0.1.5");
+  assert.equal(sections[2].date, "2026-07-27");
+  assert.match(sections[2].body, /统一待办页与已完成页的父子待办折叠入口/);
 });
 
 test("Windows CRLF 换行不会破坏标准结构解析", () => {
   const sections = parseChangelog(projectChangelog.replaceAll("\n", "\r\n"));
 
   assert.equal(sections[0].name, "Unreleased");
-  assert.equal(sections[1].name, "0.1.5");
+  assert.equal(sections[1].name, "0.1.6");
 });
 
 test("发布正文只提取指定版本的标准分类内容", () => {
-  const release = extractReleaseBody(projectChangelog, "0.1.5");
+  const release = extractReleaseBody(projectChangelog, "0.1.6");
 
-  assert.equal(release.date, "2026-07-27");
+  assert.equal(release.date, "2026-08-26");
   assert.match(release.body, /^### Changed/m);
   assert.match(release.body, /^### Fixed/m);
-  assert.doesNotMatch(release.body, /0\.1\.4/);
+  assert.match(release.body, /新建顶层待办默认插入列表最上方/);
+  assert.match(release.body, /阻止正式桌面应用重复打开/);
+  assert.doesNotMatch(release.body, /0\.1\.5/);
 });
 
 test("请求不存在的版本时拒绝生成发布正文", () => {

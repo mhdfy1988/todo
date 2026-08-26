@@ -88,58 +88,58 @@ pub(crate) fn run(app: AppHandle) {
                 .map_err(|error| error.to_string())?;
             let ledger_after_deadline_update =
                 ledger.snapshot().map_err(|error| error.to_string())?;
-            let completed_c = ledger
-                .complete_task("desktop-smoke-complete-c", &captured_c.task_id)
+            let completed_a = ledger
+                .complete_task("desktop-smoke-complete-a", &captured_a.task_id)
                 .map_err(|error| error.to_string())?;
-            let replayed_c = ledger
-                .complete_task("desktop-smoke-complete-c", &captured_c.task_id)
+            let replayed_a = ledger
+                .complete_task("desktop-smoke-complete-a", &captured_a.task_id)
                 .map_err(|error| error.to_string())?;
             let ledger_after_completion = ledger.snapshot().map_err(|error| error.to_string())?;
             ledger
                 .reorder_tasks(
-                    "desktop-smoke-reorder-b-a",
+                    "desktop-smoke-reorder-b-c",
                     &captured_b.task_id,
-                    &[captured_a.task_id.clone(), captured_b.task_id.clone()],
-                    &[captured_b.task_id.clone(), captured_a.task_id.clone()],
+                    &[captured_c.task_id.clone(), captured_b.task_id.clone()],
+                    &[captured_b.task_id.clone(), captured_c.task_id.clone()],
                 )
                 .map_err(|error| error.to_string())?;
             let ledger_after_reorder = ledger.snapshot().map_err(|error| error.to_string())?;
-            let undone_c = ledger
-                .undo_completion("desktop-smoke-undo-c", &completed_c.event_id)
+            let undone_a = ledger
+                .undo_completion("desktop-smoke-undo-a", &completed_a.event_id)
                 .map_err(|error| error.to_string())?;
             let ledger_after_undo = ledger.snapshot().map_err(|error| error.to_string())?;
             let deleted_a = ledger
                 .delete_task("desktop-smoke-delete-a", &captured_a.task_id)
                 .map_err(|error| error.to_string())?;
             let ledger_after_delete = ledger.snapshot().map_err(|error| error.to_string())?;
-            let completion_reward_recorded = completed_c
+            let completion_reward_recorded = completed_a
                 .reward_transaction_id
                 .as_deref()
                 .map(|reward_id| {
                     ledger_after_completion.rewards.iter().any(|reward| {
                         reward.id == reward_id
-                            && reward.task_event_id == completed_c.event_id
+                            && reward.task_event_id == completed_a.event_id
                             && reward.reward_type == RewardType::TaskCompletion
                             && reward.amount == 1
                     })
                 })
                 .unwrap_or(false);
-            let undo_reward_recorded = undone_c
+            let undo_reward_recorded = undone_a
                 .reward_transaction_id
                 .as_deref()
                 .map(|reward_id| {
                     ledger_after_undo.rewards.iter().any(|reward| {
                         reward.id == reward_id
-                            && reward.task_event_id == undone_c.event_id
+                            && reward.task_event_id == undone_a.event_id
                             && reward.reward_type == RewardType::CompletionUndo
                             && reward.amount == -1
                     })
                 })
                 .unwrap_or(false);
             let undo_event_recorded = ledger_after_undo.events.iter().any(|event| {
-                event.id == undone_c.event_id
+                event.id == undone_a.event_id
                     && event.event_type == TaskEventType::CompletionUndone
-                    && event.reverses_event_id.as_deref() == Some(completed_c.event_id.as_str())
+                    && event.reverses_event_id.as_deref() == Some(completed_a.event_id.as_str())
             });
             let delete_event_recorded = ledger_after_delete.events.iter().any(|event| {
                 event.id == deleted_a.event_id
@@ -151,7 +151,7 @@ pub(crate) fn run(app: AppHandle) {
                     .current_task
                     .as_ref()
                     .map(|task| &task.id)
-                    == Some(&captured_a.task_id)
+                    == Some(&captured_c.task_id)
                 && updated_b.task_id == captured_b.task_id
                 && updated_b.reward_transaction_id.is_none()
                 && ledger_after_title_update.balance == 0
@@ -160,15 +160,15 @@ pub(crate) fn run(app: AppHandle) {
                     .iter()
                     .map(|task| (task.id.as_str(), task.title.as_str()))
                     .eq([
-                        (captured_a.task_id.as_str(), "桌面联合冒烟任务 A"),
-                        (captured_b.task_id.as_str(), "桌面联合冒烟任务 B（修改）"),
                         (captured_c.task_id.as_str(), "桌面联合冒烟任务 C"),
+                        (captured_b.task_id.as_str(), "桌面联合冒烟任务 B（修改）"),
+                        (captured_a.task_id.as_str(), "桌面联合冒烟任务 A"),
                     ])
                 && ledger_after_title_update
                     .current_task
                     .as_ref()
                     .map(|task| &task.id)
-                    == Some(&captured_a.task_id)
+                    == Some(&captured_c.task_id)
                 && updated_deadline_b.task_id == captured_b.task_id
                 && updated_deadline_b.reward_transaction_id.is_none()
                 && ledger_after_deadline_update.balance == 0
@@ -182,22 +182,22 @@ pub(crate) fn run(app: AppHandle) {
                     .current_task
                     .as_ref()
                     .map(|task| &task.id)
-                    == Some(&captured_a.task_id)
-                && !completed_c.replayed
-                && replayed_c.replayed
-                && replayed_c.event_id == completed_c.event_id
+                    == Some(&captured_c.task_id)
+                && !completed_a.replayed
+                && replayed_a.replayed
+                && replayed_a.event_id == completed_a.event_id
                 && ledger_after_completion.balance == 1
                 && completion_reward_recorded
                 && ledger_after_completion
                     .current_task
                     .as_ref()
                     .map(|task| &task.id)
-                    == Some(&captured_a.task_id)
+                    == Some(&captured_c.task_id)
                 && ledger_after_reorder
                     .queue
                     .iter()
                     .map(|task| &task.id)
-                    .eq([&captured_b.task_id, &captured_a.task_id])
+                    .eq([&captured_b.task_id, &captured_c.task_id])
                 && ledger_after_reorder
                     .current_task
                     .as_ref()
@@ -274,8 +274,8 @@ pub(crate) fn run(app: AppHandle) {
                         task.id == captured_b.task_id
                             && task.deadline_on.as_deref() == Some("2026-07-20")
                     }),
-                    "completedNonCurrentTask": completed_c.task_id == captured_c.task_id,
-                    "idempotentReplay": replayed_c.replayed,
+                    "completedNonCurrentTask": completed_a.task_id == captured_a.task_id,
+                    "idempotentReplay": replayed_a.replayed,
                     "reorderedCurrentTask": ledger_after_reorder.current_task.as_ref().map(|task| &task.id) == Some(&captured_b.task_id),
                     "balanceAfterCompletion": ledger_after_completion.balance,
                     "balanceAfterUndo": ledger_after_undo.balance,

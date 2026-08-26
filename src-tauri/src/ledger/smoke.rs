@@ -164,7 +164,7 @@ fn run_parent_smoke_at(database_path: &Path) -> Result<serde_json::Value, Ledger
                 .current_task
                 .as_ref()
                 .map(|task| task.id.as_str())
-                == Some(task_a_id.as_str())
+                == Some(task_b_id.as_str())
     };
 
     let commit_child_status = run_ledger_child(

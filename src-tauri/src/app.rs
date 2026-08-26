@@ -11,8 +11,17 @@ use tauri_plugin_window_state::{StateFlags, WindowExt};
 pub(crate) fn run() {
     let profile = RuntimeProfile::from_args();
     let state_file = profile.state_file();
+    let mut builder = tauri::Builder::default();
 
-    tauri::Builder::default()
+    if !profile.is_smoke() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Err(error) = window::restore_expanded(app) {
+                eprintln!("重复启动时恢复主窗口失败：{error}");
+            }
+        }));
+    }
+
+    builder
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(

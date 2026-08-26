@@ -266,16 +266,24 @@ impl IntegrityReport {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskPlacement {
+    Preserve,
+    QueueHead,
+    QueueTail,
+    SiblingTail,
+}
+
 #[derive(Debug, Clone)]
 pub enum TaskWrite {
     Insert {
         task: Task,
-        place_at_tail: bool,
+        placement: TaskPlacement,
     },
     Update {
         expected_version: i64,
         task: Task,
-        place_at_tail: bool,
+        placement: TaskPlacement,
     },
     ReorderQueue {
         expected_queue: Vec<QueuedTaskVersion>,
@@ -581,13 +589,13 @@ pub fn capture_task_transition(
         event_type: TaskEventType::Created,
         occurred_at_ms,
         reason: None,
-        metadata: serde_json::json!({}),
+        metadata: serde_json::json!({ "queuePlacement": "head" }),
         reverses_event_id: None,
     };
     LedgerMutation {
         task_write: TaskWrite::Insert {
             task,
-            place_at_tail: true,
+            placement: TaskPlacement::QueueHead,
         },
         event,
         reward: None,
@@ -641,7 +649,7 @@ pub fn create_subtask_transition(
     Ok(LedgerMutation {
         task_write: TaskWrite::Insert {
             task,
-            place_at_tail: true,
+            placement: TaskPlacement::SiblingTail,
         },
         event,
         reward: None,
@@ -700,7 +708,7 @@ pub fn update_task_title_transition(
         task_write: TaskWrite::Update {
             expected_version: task.version,
             task: task_after,
-            place_at_tail: false,
+            placement: TaskPlacement::Preserve,
         },
         event,
         reward: None,
@@ -751,7 +759,7 @@ pub fn update_task_deadline_transition(
         task_write: TaskWrite::Update {
             expected_version: task.version,
             task: task_after,
-            place_at_tail: false,
+            placement: TaskPlacement::Preserve,
         },
         event,
         reward: None,
@@ -876,7 +884,7 @@ pub fn complete_task_transition(
                         task_write: TaskWrite::Update {
                             expected_version: subtask.version,
                             task: child_after,
-                            place_at_tail: false,
+                            placement: TaskPlacement::Preserve,
                         },
                         event: child_event,
                     });
@@ -960,7 +968,7 @@ pub fn complete_task_transition(
         task_write: TaskWrite::Update {
             expected_version: task.version,
             task: task_after,
-            place_at_tail: false,
+            placement: TaskPlacement::Preserve,
         },
         event,
         reward,
@@ -1013,7 +1021,7 @@ pub fn delete_task_transition(
         task_write: TaskWrite::Update {
             expected_version: task.version,
             task: task_after,
-            place_at_tail: false,
+            placement: TaskPlacement::Preserve,
         },
         event,
         reward: None,
@@ -1321,7 +1329,11 @@ pub fn undo_completion_transition(
         task_write: TaskWrite::Update {
             expected_version: task.version,
             task: task_after,
-            place_at_tail: !is_subtask,
+            placement: if is_subtask {
+                TaskPlacement::Preserve
+            } else {
+                TaskPlacement::QueueTail
+            },
         },
         event,
         reward,
@@ -1476,6 +1488,48 @@ mod tests {
     }
 
     #[test]
+    fn creation_uses_distinct_root_head_and_subtask_tail_placements() {
+        let root = capture_task_transition(
+            "新父待办".to_string(),
+            "root-new".to_string(),
+            MutationContext {
+                command_id: "capture-root-new".to_string(),
+                event_id: "event-root-new".to_string(),
+                reward_transaction_id: None,
+                occurred_at_ms: 20,
+            },
+        );
+        assert!(matches!(
+            root.task_write,
+            TaskWrite::Insert {
+                placement: TaskPlacement::QueueHead,
+                ..
+            }
+        ));
+        assert_eq!(root.event.metadata["queuePlacement"], "head");
+
+        let child = create_subtask_transition(
+            &pending_task(),
+            "新子待办".to_string(),
+            "child-new".to_string(),
+            MutationContext {
+                command_id: "capture-child-new".to_string(),
+                event_id: "event-child-new".to_string(),
+                reward_transaction_id: None,
+                occurred_at_ms: 20,
+            },
+        )
+        .expect("创建子待办转换应成功");
+        assert!(matches!(
+            child.task_write,
+            TaskWrite::Insert {
+                placement: TaskPlacement::SiblingTail,
+                ..
+            }
+        ));
+    }
+
+    #[test]
     fn completion_and_undo_create_opposite_reward_mutations() {
         let completion = complete_task_transition(
             &pending_task(),
@@ -1552,10 +1606,10 @@ mod tests {
             TaskWrite::Update {
                 expected_version,
                 task,
-                place_at_tail,
+                placement,
             } => {
                 assert_eq!(expected_version, 1);
-                assert!(!place_at_tail);
+                assert!(matches!(placement, TaskPlacement::Preserve));
                 task
             }
             TaskWrite::Insert { .. } => panic!("修改标题不应新建任务"),
@@ -1650,10 +1704,10 @@ mod tests {
             TaskWrite::Update {
                 expected_version,
                 task,
-                place_at_tail,
+                placement,
             } => {
                 assert_eq!(expected_version, 1);
-                assert!(!place_at_tail);
+                assert!(matches!(placement, TaskPlacement::Preserve));
                 task
             }
             TaskWrite::Insert { .. } => panic!("截止日期修改不应新建任务"),
@@ -1738,10 +1792,10 @@ mod tests {
             TaskWrite::Update {
                 expected_version,
                 task,
-                place_at_tail,
+                placement,
             } => {
                 assert_eq!(expected_version, 1);
-                assert!(!place_at_tail);
+                assert!(matches!(placement, TaskPlacement::Preserve));
                 task
             }
             TaskWrite::Insert { .. } => panic!("删除不应新建任务"),

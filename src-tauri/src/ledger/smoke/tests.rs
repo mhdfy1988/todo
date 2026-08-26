@@ -45,6 +45,176 @@ fn service_with_one_task(
 }
 
 #[test]
+fn ledger_smoke_places_new_roots_at_head_and_keeps_subtasks_in_creation_order() {
+    let path = temporary_database_path("root-head-child-tail");
+    let (parent_a_id, parent_b_id, parent_c_id, child_ids) = {
+        let store = SqliteLedgerStore::open(&path).expect("应建立排序账本");
+        let mut service = TaskService::new(store, SystemClock, UuidIdGenerator);
+        let parent_a = service
+            .capture_task("capture-root-head-a", "父待办 A")
+            .expect("应创建父待办 A");
+        let child_a = service
+            .create_subtask("capture-root-head-child-a", &parent_a.task_id, "子待办 A")
+            .expect("应创建子待办 A");
+        let child_b = service
+            .create_subtask("capture-root-head-child-b", &parent_a.task_id, "子待办 B")
+            .expect("应创建子待办 B");
+        let parent_b = service
+            .capture_task("capture-root-head-b", "父待办 B")
+            .expect("应创建父待办 B");
+
+        let initial = service.snapshot().expect("应读取首次置顶快照");
+        assert_eq!(
+            initial
+                .queue
+                .iter()
+                .map(|task| (task.id.as_str(), task.queue_position))
+                .collect::<Vec<_>>(),
+            vec![
+                (parent_b.task_id.as_str(), Some(1)),
+                (parent_a.task_id.as_str(), Some(2)),
+            ]
+        );
+        assert_eq!(
+            initial
+                .subtasks
+                .iter()
+                .map(|task| (task.id.as_str(), task.sibling_position))
+                .collect::<Vec<_>>(),
+            vec![
+                (child_a.task_id.as_str(), Some(1)),
+                (child_b.task_id.as_str(), Some(2)),
+            ]
+        );
+
+        service
+            .reorder_tasks(
+                "reorder-root-head-a-before-b",
+                &parent_a.task_id,
+                &[parent_b.task_id.clone(), parent_a.task_id.clone()],
+                &[parent_a.task_id.clone(), parent_b.task_id.clone()],
+            )
+            .expect("手动重排父待办应成功");
+        let child_c = service
+            .create_subtask("capture-root-head-child-c", &parent_a.task_id, "子待办 C")
+            .expect("应继续向下追加子待办 C");
+        let parent_c = service
+            .capture_task("capture-root-head-c", "父待办 C")
+            .expect("应创建并置顶父待办 C");
+        assert!(service
+            .verify_integrity()
+            .expect("排序账本应通过完整性校验")
+            .is_ok());
+
+        (
+            parent_a.task_id,
+            parent_b.task_id,
+            parent_c.task_id,
+            vec![child_a.task_id, child_b.task_id, child_c.task_id],
+        )
+    };
+
+    {
+        let store = SqliteLedgerStore::open(&path).expect("应重开排序账本");
+        let mut service = TaskService::new(store, SystemClock, UuidIdGenerator);
+        let snapshot = service.snapshot().expect("应读取持久化排序快照");
+        assert_eq!(
+            snapshot
+                .queue
+                .iter()
+                .map(|task| task.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                parent_c_id.as_str(),
+                parent_a_id.as_str(),
+                parent_b_id.as_str()
+            ]
+        );
+        assert_eq!(
+            snapshot
+                .subtasks
+                .iter()
+                .map(|task| task.id.as_str())
+                .collect::<Vec<_>>(),
+            child_ids.iter().map(String::as_str).collect::<Vec<_>>()
+        );
+        assert!(service
+            .verify_integrity()
+            .expect("重开后应完成完整性校验")
+            .is_ok());
+    }
+    remove_database_family(&path);
+}
+
+#[test]
+fn ledger_integrity_replays_legacy_created_events_at_tail() {
+    let path = temporary_database_path("legacy-created-tail");
+    let (task_a_id, task_b_id) = {
+        let store = SqliteLedgerStore::open(&path).expect("应建立旧事件兼容账本");
+        let mut service = TaskService::new(store, SystemClock, UuidIdGenerator);
+        let task_a = service
+            .capture_task("legacy-created-a", "旧任务 A")
+            .expect("应创建旧任务 A");
+        let task_b = service
+            .capture_task("legacy-created-b", "旧任务 B")
+            .expect("应创建旧任务 B");
+        (task_a.task_id, task_b.task_id)
+    };
+    {
+        let mut connection = rusqlite::Connection::open(&path).expect("应打开旧事件兼容账本");
+        let transaction = connection.transaction().expect("应开始兼容数据事务");
+        transaction
+            .execute(
+                "UPDATE tasks SET queue_position = queue_position + 100
+                 WHERE queue_position IS NOT NULL",
+                [],
+            )
+            .expect("应先移动队列到安全位置");
+        transaction
+            .execute(
+                "UPDATE tasks SET queue_position = CASE id WHEN ?1 THEN 1 WHEN ?2 THEN 2 END
+                 WHERE id IN (?1, ?2)",
+                rusqlite::params![task_a_id, task_b_id],
+            )
+            .expect("应还原旧版本的尾插顺序");
+        transaction
+            .execute(
+                "UPDATE task_events SET metadata_json = '{}'
+                 WHERE event_type = 'created'",
+                [],
+            )
+            .expect("应模拟旧版本空创建元数据");
+        transaction
+            .execute(
+                "UPDATE command_receipts
+                 SET result_json = json_set(result_json, '$.currentTaskId', ?2)
+                 WHERE command_id = ?1",
+                rusqlite::params!["legacy-created-b", task_a_id],
+            )
+            .expect("应模拟旧版本尾插后的当前任务回执");
+        transaction.commit().expect("应提交旧事件兼容数据");
+    }
+    {
+        let store = SqliteLedgerStore::open(&path).expect("应重开旧事件兼容账本");
+        let mut service = TaskService::new(store, SystemClock, UuidIdGenerator);
+        let snapshot = service.snapshot().expect("应读取旧版尾插顺序");
+        assert_eq!(
+            snapshot
+                .queue
+                .iter()
+                .map(|task| task.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![task_a_id.as_str(), task_b_id.as_str()]
+        );
+        assert!(service
+            .verify_integrity()
+            .expect("旧创建事件应兼容回放")
+            .is_ok());
+    }
+    remove_database_family(&path);
+}
+
+#[test]
 fn ledger_smoke_rolls_back_every_injected_write_point() {
     for point in [
         FailurePoint::AfterTaskWrite,
@@ -131,7 +301,7 @@ fn ledger_smoke_soft_delete_is_idempotent_and_preserves_queue_history() {
     assert!(deleted_b.reward_transaction_id.is_none());
     assert_eq!(
         deleted_b.current_task_id.as_deref(),
-        Some(task_a.task_id.as_str())
+        Some(task_c.task_id.as_str())
     );
 
     let replayed_b = service
@@ -151,12 +321,12 @@ fn ledger_smoke_soft_delete_is_idempotent_and_preserves_queue_history() {
         Err(ref error) if error.code() == "INVALID_TASK_STATE"
     ));
 
-    let deleted_a = service
-        .delete_task("delete-head", &task_a.task_id)
-        .expect("应删除队首任务 A");
+    let deleted_c = service
+        .delete_task("delete-head", &task_c.task_id)
+        .expect("应删除队首任务 C");
     assert_eq!(
-        deleted_a.current_task_id.as_deref(),
-        Some(task_c.task_id.as_str())
+        deleted_c.current_task_id.as_deref(),
+        Some(task_a.task_id.as_str())
     );
 
     let snapshot = service.snapshot().expect("应读取删除后的快照");
@@ -166,7 +336,7 @@ fn ledger_smoke_soft_delete_is_idempotent_and_preserves_queue_history() {
             .iter()
             .map(|task| task.id.as_str())
             .collect::<Vec<_>>(),
-        vec![task_c.task_id.as_str()]
+        vec![task_a.task_id.as_str()]
     );
     assert!(snapshot.completed.is_empty());
     assert_eq!(snapshot.events.len(), 5);
@@ -186,14 +356,14 @@ fn ledger_smoke_soft_delete_is_idempotent_and_preserves_queue_history() {
         .expect("应读取删除后的周报事实");
     assert!(facts.effective_completions.is_empty());
     assert_eq!(facts.ongoing_tasks.len(), 1);
-    assert_eq!(facts.ongoing_tasks[0].id, task_c.task_id);
+    assert_eq!(facts.ongoing_tasks[0].id, task_a.task_id);
     assert!(service
         .verify_integrity()
         .expect("软删除账本应完成校验")
         .is_ok());
 
     let store = service.into_store();
-    for task_id in [&task_a.task_id, &task_b.task_id] {
+    for task_id in [&task_b.task_id, &task_c.task_id] {
         let task = store
             .task_by_id(task_id)
             .expect("应读取软删除任务")
@@ -236,7 +406,7 @@ fn ledger_smoke_rolls_back_every_soft_delete_write_point() {
                 .iter()
                 .map(|task| task.id.as_str())
                 .collect::<Vec<_>>(),
-            vec![task_a.task_id.as_str(), task_b.task_id.as_str()],
+            vec![task_b.task_id.as_str(), task_a.task_id.as_str()],
             "失败点：{point:?}"
         );
         assert_eq!(after_failure.events.len(), 2, "失败点：{point:?}");
@@ -277,12 +447,12 @@ fn ledger_smoke_title_update_is_audited_idempotent_and_preserves_projection() {
 
     let updated_b = service
         .update_task_title("update-title-b", &task_b.task_id, " 任务 B（修改） ")
-        .expect("应修改非队首任务 B");
+        .expect("应修改当前队首任务 B");
     assert!(!updated_b.replayed);
     assert!(updated_b.reward_transaction_id.is_none());
     assert_eq!(
         updated_b.current_task_id.as_deref(),
-        Some(task_a.task_id.as_str())
+        Some(task_b.task_id.as_str())
     );
     let replayed_b = service
         .update_task_title("update-title-b", &task_b.task_id, "任务 B（修改）")
@@ -317,8 +487,8 @@ fn ledger_smoke_title_update_is_audited_idempotent_and_preserves_projection() {
             .map(|task| (task.id.as_str(), task.title.as_str(), task.queue_position))
             .collect::<Vec<_>>(),
         vec![
-            (task_a.task_id.as_str(), "任务 A（修改）", Some(1)),
-            (task_b.task_id.as_str(), "任务 B（修改）", Some(2)),
+            (task_b.task_id.as_str(), "任务 B（修改）", Some(1)),
+            (task_a.task_id.as_str(), "任务 A（修改）", Some(2)),
         ]
     );
     assert_eq!(
@@ -326,7 +496,7 @@ fn ledger_smoke_title_update_is_audited_idempotent_and_preserves_projection() {
             .current_task
             .as_ref()
             .map(|task| task.id.as_str()),
-        Some(task_a.task_id.as_str())
+        Some(task_b.task_id.as_str())
     );
     assert_eq!(after_updates.events.len(), 4);
     assert!(after_updates.rewards.is_empty());
@@ -347,7 +517,7 @@ fn ledger_smoke_title_update_is_audited_idempotent_and_preserves_projection() {
 
     service
         .complete_task("complete-renamed-b", &task_b.task_id)
-        .expect("修改后仍应能完成非队首 B");
+        .expect("修改后仍应能完成队首 B");
     assert!(matches!(
         service.update_task_title("update-completed-b", &task_b.task_id, "完成后修改"),
         Err(ref error) if error.code() == "INVALID_TASK_STATE"
@@ -401,8 +571,8 @@ fn ledger_smoke_rolls_back_every_title_update_write_point() {
                 .map(|task| (task.id.as_str(), task.title.as_str()))
                 .collect::<Vec<_>>(),
             vec![
-                (task_a.task_id.as_str(), "任务 A"),
                 (task_b.task_id.as_str(), "任务 B"),
+                (task_a.task_id.as_str(), "任务 A"),
             ],
             "失败点：{point:?}"
         );
@@ -419,8 +589,8 @@ fn ledger_smoke_rolls_back_every_title_update_write_point() {
             .expect("回滚后同一 operationId 应能重新提交");
         assert!(!retried.replayed);
         let after_retry = service.snapshot().expect("应读取重试后快照");
-        assert_eq!(after_retry.queue[0].title, "任务 A（修改）");
-        assert_eq!(after_retry.queue[1].id, task_b.task_id);
+        assert_eq!(after_retry.queue[0].id, task_b.task_id);
+        assert_eq!(after_retry.queue[1].title, "任务 A（修改）");
         assert_eq!(after_retry.events.len(), 3);
         assert!(after_retry.rewards.is_empty());
         assert_eq!(after_retry.balance, 0);
@@ -444,12 +614,12 @@ fn ledger_smoke_deadline_update_is_audited_idempotent_and_preserved_by_lifecycle
 
     let updated_b = service
         .update_task_deadline("update-deadline-b", &task_b.task_id, Some(" 2026-07-01 "))
-        .expect("应允许给非队首任务设置过去期限");
+        .expect("应允许给队首任务设置过去期限");
     assert!(!updated_b.replayed);
     assert!(updated_b.reward_transaction_id.is_none());
     assert_eq!(
         updated_b.current_task_id.as_deref(),
-        Some(task_a.task_id.as_str())
+        Some(task_b.task_id.as_str())
     );
     let replayed_b = service
         .update_task_deadline("update-deadline-b", &task_b.task_id, Some("2026-07-01"))
@@ -600,8 +770,8 @@ fn ledger_smoke_completes_any_visible_task_and_persists_reorder() {
             .expect("应创建 C");
 
         service
-            .complete_task("complete-any-c", &task_c.task_id)
-            .expect("非队首 C 也应能完成");
+            .complete_task("complete-any-a", &task_a.task_id)
+            .expect("非队首 A 也应能完成");
         let after_completion = service.snapshot().expect("应读取非队首完成快照");
         assert_eq!(
             after_completion
@@ -609,36 +779,36 @@ fn ledger_smoke_completes_any_visible_task_and_persists_reorder() {
                 .iter()
                 .map(|task| task.id.as_str())
                 .collect::<Vec<_>>(),
-            vec![task_a.task_id.as_str(), task_b.task_id.as_str()]
+            vec![task_c.task_id.as_str(), task_b.task_id.as_str()]
         );
         assert_eq!(
             after_completion
                 .current_task
                 .as_ref()
                 .map(|task| task.id.as_str()),
-            Some(task_a.task_id.as_str())
+            Some(task_c.task_id.as_str())
         );
-        assert_eq!(after_completion.completed[0].id, task_c.task_id);
+        assert_eq!(after_completion.completed[0].id, task_a.task_id);
         assert_eq!(after_completion.balance, 1);
 
-        let expected = vec![task_a.task_id.clone(), task_b.task_id.clone()];
-        let ordered = vec![task_b.task_id.clone(), task_a.task_id.clone()];
+        let expected = vec![task_c.task_id.clone(), task_b.task_id.clone()];
+        let ordered = vec![task_b.task_id.clone(), task_c.task_id.clone()];
         let reordered = service
-            .reorder_tasks("reorder-b-before-a", &task_b.task_id, &expected, &ordered)
-            .expect("应把 B 移到 A 前");
+            .reorder_tasks("reorder-b-before-c", &task_b.task_id, &expected, &ordered)
+            .expect("应把 B 移到 C 前");
         assert!(!reordered.replayed);
         assert_eq!(
             reordered.current_task_id.as_deref(),
             Some(task_b.task_id.as_str())
         );
         let replay = service
-            .reorder_tasks("reorder-b-before-a", &task_b.task_id, &expected, &ordered)
+            .reorder_tasks("reorder-b-before-c", &task_b.task_id, &expected, &ordered)
             .expect("相同重排命令应幂等重放");
         assert!(replay.replayed);
         assert_eq!(replay.event_id, reordered.event_id);
 
         let conflict =
-            service.reorder_tasks("reorder-b-before-a", &task_a.task_id, &ordered, &expected);
+            service.reorder_tasks("reorder-b-before-c", &task_c.task_id, &ordered, &expected);
         assert!(matches!(
             conflict,
             Err(ref error) if error.code() == "COMMAND_ID_CONFLICT"
@@ -656,13 +826,13 @@ fn ledger_smoke_completes_any_visible_task_and_persists_reorder() {
                 .iter()
                 .map(|task| task.id.as_str())
                 .collect::<Vec<_>>(),
-            vec![task_b_id.as_str(), task_a_id.as_str()]
+            vec![task_b_id.as_str(), task_c_id.as_str()]
         );
         assert_eq!(
             snapshot.current_task.as_ref().map(|task| task.id.as_str()),
             Some(task_b_id.as_str())
         );
-        assert_eq!(snapshot.completed[0].id, task_c_id);
+        assert_eq!(snapshot.completed[0].id, task_a_id);
         assert_eq!(snapshot.events.len(), 5);
         assert_eq!(snapshot.rewards.len(), 1);
         assert!(service.verify_integrity().expect("应校验重排账本").is_ok());
@@ -686,8 +856,8 @@ fn ledger_smoke_rolls_back_every_reorder_write_point() {
         let task_b = service
             .capture_task(&format!("capture-reorder-b-{point:?}"), "任务 B")
             .expect("应创建 B");
-        let expected = vec![task_a.task_id.clone(), task_b.task_id.clone()];
-        let ordered = vec![task_b.task_id.clone(), task_a.task_id.clone()];
+        let expected = vec![task_b.task_id.clone(), task_a.task_id.clone()];
+        let ordered = vec![task_a.task_id.clone(), task_b.task_id.clone()];
         let mut store = service.into_store();
         store.inject_failure_once(point);
         let mut service = TaskService::new(store, SystemClock, UuidIdGenerator);
@@ -708,7 +878,7 @@ fn ledger_smoke_rolls_back_every_reorder_write_point() {
                 .iter()
                 .map(|task| task.id.as_str())
                 .collect::<Vec<_>>(),
-            vec![task_a.task_id.as_str(), task_b.task_id.as_str()],
+            vec![task_b.task_id.as_str(), task_a.task_id.as_str()],
             "失败点：{point:?}"
         );
         assert_eq!(snapshot.events.len(), 2, "失败点：{point:?}");

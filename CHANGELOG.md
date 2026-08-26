@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-08-26
+
+### Changed
+
+- 新建顶层待办默认插入列表最上方；子待办仍按创建顺序追加在所属父待办下方，之后的手动排序保持不变。
+
+### Fixed
+
+- 阻止正式桌面应用重复打开；再次启动时会唤回并展开已经运行的窗口，桌面冒烟实例继续保持隔离。
+
 ## [0.1.5] - 2026-07-27
 
 ### Changed
@@ -82,7 +92,8 @@
 - 支持完成记录与撤销、当前页面搜索、桌面胶囊、系统托盘和应用内更新。
 - 使用本地 SQLite 事件账本保存任务、完成历史、奖励和幂等命令回执。
 
-[Unreleased]: https://github.com/mhdfy1988/todo/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/mhdfy1988/todo/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/mhdfy1988/todo/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/mhdfy1988/todo/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/mhdfy1988/todo/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/mhdfy1988/todo/compare/v0.1.2...v0.1.3

@@ -20,6 +20,7 @@ const packageLock = JSON.parse(read("package-lock.json"));
 const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json"));
 const cargoToml = read("src-tauri/Cargo.toml");
 const cargoLock = read("src-tauri/Cargo.lock");
+const appRust = read("src-tauri/src/app.rs");
 const workflow = read(".github/workflows/release.yml");
 const capability = JSON.parse(read("src-tauri/capabilities/default.json"));
 
@@ -89,7 +90,33 @@ test("更新源、公钥和 Rust 插件进入首个安装版", () => {
   assert.ok(updater.pubkey.length > 100);
   assert.equal(updater.windows.installMode, "passive");
   assert.match(cargoToml, /^tauri-plugin-clipboard-manager = "2\.3\.2"$/m);
+  assert.match(cargoToml, /^tauri-plugin-single-instance = "2\.4\.3"$/m);
   assert.match(cargoToml, /^tauri-plugin-updater = "2\.10\.1"$/m);
+});
+
+test("正式桌面保持单实例并通过统一窗口状态入口恢复", () => {
+  const singleInstance = appRust.indexOf(
+    ".plugin(tauri_plugin_single_instance::init",
+  );
+  const clipboard = appRust.indexOf(
+    ".plugin(tauri_plugin_clipboard_manager::init())",
+  );
+
+  assert.ok(singleInstance >= 0, "正式桌面必须注册单实例插件");
+  assert.ok(
+    singleInstance < clipboard,
+    "单实例插件必须先于其他插件注册",
+  );
+  assert.match(
+    appRust,
+    /if !profile\.is_smoke\(\) \{[\s\S]*tauri_plugin_single_instance::init/,
+    "smoke 必须继续绕开正式单实例互斥",
+  );
+  assert.match(
+    appRust,
+    /tauri_plugin_single_instance::init\(\|app, _args, _cwd\| \{[\s\S]*window::restore_expanded\(app\)/,
+    "重复启动应复用统一窗口状态入口展开并聚焦已有实例",
+  );
 });
 
 test("发布工作流先过门禁，再上传安装器、签名和 latest.json", () => {

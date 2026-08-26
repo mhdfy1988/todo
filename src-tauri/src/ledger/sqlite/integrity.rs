@@ -708,8 +708,43 @@ fn replay_queue_history(connection: &Connection) -> Result<QueueReplay, LedgerEr
         apply_title_history(&event, &mut titles_by_task_id, &mut failures);
         apply_deadline_history(&event, &mut deadlines_by_task_id, &mut failures);
         match event.event_type {
-            TaskEventType::Created
-            | TaskEventType::CompletionUndone
+            TaskEventType::Created => {
+                if is_subtask {
+                    failures.push(format!(
+                        "子代办事件 {} 错误使用了顶层事件类型 {}",
+                        event.id,
+                        event.event_type.as_storage()
+                    ));
+                } else if queue.iter().any(|task_id| task_id == &event.task_id) {
+                    failures.push(format!(
+                        "任务事件 {}（{}）尝试重复入队任务 {}",
+                        event.id,
+                        event.event_type.as_storage(),
+                        event.task_id
+                    ));
+                } else if event
+                    .metadata
+                    .as_object()
+                    .is_some_and(|metadata| metadata.is_empty())
+                {
+                    // v0.1.5 及更早版本的创建事件没有位置元数据，按原有队尾语义回放。
+                    queue.push(event.task_id.clone());
+                } else if event.metadata.as_object().is_some_and(|metadata| {
+                    metadata.len() == 1
+                        && metadata
+                            .get("queuePlacement")
+                            .and_then(|value| value.as_str())
+                            == Some("head")
+                }) {
+                    queue.insert(0, event.task_id.clone());
+                } else {
+                    failures.push(format!(
+                        "创建事件 {} 的 queuePlacement 元数据无效",
+                        event.id
+                    ));
+                }
+            }
+            TaskEventType::CompletionUndone
             | TaskEventType::DueRecovered
             | TaskEventType::Recovered
             | TaskEventType::Reopened => {
