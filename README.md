@@ -2,9 +2,9 @@
 
 “待办”是一款本地优先的 Windows 桌面悬浮待办：想到事情时快速记下，按自己需要的顺序处理，并保留完成历史作为周报和回顾依据。
 
-当前公开版本为 [`0.1.5`](https://github.com/mhdfy1988/todo/releases/tag/v0.1.5)，`0.1.6` 正在准备正式发布。本次补丁阻止正式应用重复打开，再次启动时只唤回现有窗口；同时让新建父待办默认出现在列表最上方，子待办仍按创建顺序向下追加。数据库继续使用 schema v5，内部 `zuoban` 身份、数据目录、更新端点和签名公钥保持不变。宠物、番茄钟、AI 和日历均不在本阶段范围内。
+当前公开版本为 [`0.1.6`](https://github.com/mhdfy1988/todo/releases/tag/v0.1.6)。本次补丁阻止正式应用重复打开，再次启动时只唤回现有窗口；同时让新建父待办默认出现在列表最上方，子待办仍按创建顺序向下追加。数据库继续使用 schema v5，内部 `zuoban` 身份、数据目录、更新端点和签名公钥保持不变。Windows x64 安装器、更新签名与 `latest.json` 已由 GitHub Actions 发布并完成验签核对。宠物、番茄钟、AI 和日历均不在本阶段范围内。
 
-下方功能说明已同步 `0.1.6` 发布候选；后续变化继续记录在 [`CHANGELOG.md`](./CHANGELOG.md) 的 `Unreleased`。
+下方功能说明以当前公开版本 `0.1.6` 为准；后续变化继续记录在 [`CHANGELOG.md`](./CHANGELOG.md) 的 `Unreleased`。
 
 ## 功能
 
@@ -115,7 +115,7 @@ npm.cmd run desktop:build
 npm.cmd run desktop:bundle:windows
 ```
 
-安装器与 `.sig` 更新签名位于 `src-tauri/target/release/bundle/nsis/`。[`v0.1.5` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.5) 的线上 `latest.json`、更新签名和安装器 SHA-256 已由发布工作流与匿名公开下载双重验证；当前正式安装基线为 `0.1.4`，完整版本间升级闭环仍待实测。
+安装器与 `.sig` 更新签名位于 `src-tauri/target/release/bundle/nsis/`。[`v0.1.6` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.6) 的线上 `latest.json`、更新签名和安装器已由发布工作流完成核验；当前正式安装基线仍需在实际用户环境单独确认。
 
 正式发布前需要先试装时，使用独立候选配置生成“待办测试版”：
 
@@ -127,7 +127,7 @@ npx.cmd tauri build --bundles nsis --ci --no-sign --config src-tauri\tauri.candi
 
 ## 安装、发布与更新
 
-- 首次安装：用户从 [`v0.1.5` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.5) 手动下载 Windows x64 `setup.exe` 并安装；安装范围为当前用户。
+- 首次安装：用户从 [`v0.1.6` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.6) 手动下载 Windows x64 `setup.exe` 并安装；安装范围为当前用户。
 - 后续更新：正常模式启动后立即静默检查一次，此后每 24 小时检查；更多菜单提供“检查更新”。发现新版本后，用户点击“安装更新”才会下载、安装并重启应用。
 - 冒烟隔离：smoke 前端不会启动更新控制器，Rust 更新服务也会在访问网络前拒绝请求，避免测试触碰正式更新源。
 - 自动发布：`.github/workflows/release.yml` 支持从 `main` 手动触发和 `v*` 标签触发；已公开的版本禁止覆盖，新版本必须先同步提升 npm、Tauri、Cargo 三份清单及对应锁文件的版本事实，并把 [`CHANGELOG.md`](./CHANGELOG.md) 的 `Unreleased` 内容收口到带实际日期的当前版本段。GitHub Release 正文只读取该标准版本段，不混入自动提交列表；`tauri-apps/tauri-action@v1` 先生成草稿 Release、安装器、更新签名和 `latest.json`，工作流回读核对正文、用客户端公钥验签并核对元数据后才自动发布。
@@ -145,7 +145,7 @@ npx.cmd tauri build --bundles nsis --ci --no-sign --config src-tauri\tauri.candi
 ## 已知限制
 
 - 当前只按 Windows 桌面环境开发和验证，不承诺 macOS 或 Linux 可用。
-- 当前安装器只面向 Windows x64；`v0.1.5` 的公开下载、元数据和更新签名已完成验证，`v0.1.4 → v0.1.5` 应用内发现、安装重启与数据保留仍待实机验证。
+- 当前安装器只面向 Windows x64；`v0.1.6` 的公开下载、元数据和更新签名已完成验证，版本间应用内发现、安装重启与数据保留仍待实机验证。
 - Windows Authenticode 暂未配置，安装器可能触发 SmartScreen 提示。
 - 多显示器、所有 Windows 缩放比例以及任务栏位于四个方向的组合仍需更多实机验证。
 - 截止日期只用于本地展示，不会自动排序、隐藏任务、提醒、发送通知、同步日历或产生奖惩。
