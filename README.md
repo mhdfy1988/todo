@@ -168,6 +168,7 @@ npx.cmd tauri build --bundles nsis --ci --no-sign --config src-tauri\tauri.candi
 - [子代办完整交互与领域设计 v0.1](./docs/子代办完整交互与领域设计-v0.1.md)
 - [一级子代办早期交互原型（`v0.1.2` 前历史草案）](./docs/prototypes/subtasks-v0.1/index.html)
 - [Windows 发布与自动更新 v0.1](./docs/Windows发布与自动更新-v0.1.md)
+- [发布与自动更新学习指南](./docs/发布与更新学习指南.md)——按实际顺序学习版本、门禁、标签、Actions 和 Release 验证
 - [标准更新日志](./CHANGELOG.md)
 
 ### 保留候选设计
