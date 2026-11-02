@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-02
+
+### Fixed
+
+- 兼容旧版本没有记录队列位置的“撤销完成”事件，避免更新后因历史账本回放顺序变化而无法启动。
+- 新版本的顶层待办撤销完成后仍会回到列表最上方。
+
 ## [0.1.7] - 2026-11-02
 
 ### Fixed
@@ -98,7 +105,8 @@
 - 支持完成记录与撤销、当前页面搜索、桌面胶囊、系统托盘和应用内更新。
 - 使用本地 SQLite 事件账本保存任务、完成历史、奖励和幂等命令回执。
 
-[Unreleased]: https://github.com/mhdfy1988/todo/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/mhdfy1988/todo/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/mhdfy1988/todo/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/mhdfy1988/todo/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/mhdfy1988/todo/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/mhdfy1988/todo/compare/v0.1.4...v0.1.5

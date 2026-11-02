@@ -758,8 +758,26 @@ fn replay_queue_history(connection: &Connection) -> Result<QueueReplay, LedgerEr
                         event.event_type.as_storage(),
                         event.task_id
                     ));
-                } else {
+                } else if event
+                    .metadata
+                    .as_object()
+                    .is_some_and(|metadata| metadata.is_empty())
+                {
+                    // v0.1.6 及更早版本的撤销完成事件没有位置元数据，按原有队尾语义回放。
+                    queue.push(event.task_id.clone());
+                } else if event.metadata.as_object().is_some_and(|metadata| {
+                    metadata.len() == 1
+                        && metadata
+                            .get("queuePlacement")
+                            .and_then(|value| value.as_str())
+                            == Some("head")
+                }) {
                     queue.insert(0, event.task_id.clone());
+                } else {
+                    failures.push(format!(
+                        "撤销完成事件 {} 的 queuePlacement 元数据无效",
+                        event.id
+                    ));
                 }
             }
             TaskEventType::DueRecovered | TaskEventType::Recovered | TaskEventType::Reopened => {

@@ -1295,6 +1295,9 @@ pub fn undo_completion_transition(
     if let Some(parent) = parent {
         add_parent_metadata(&mut metadata, parent);
     }
+    if !is_subtask {
+        metadata["queuePlacement"] = serde_json::json!("head");
+    }
     let event = TaskEvent {
         sequence: None,
         id: undo_event_id.clone(),
@@ -1580,6 +1583,7 @@ mod tests {
                 ..
             }
         ));
+        assert_eq!(undo.event.metadata["queuePlacement"], "head");
         assert_eq!(
             undo.event.reverses_event_id.as_deref(),
             Some("event-complete")
