@@ -210,7 +210,7 @@ fn run_parent_smoke_at(database_path: &Path) -> Result<serde_json::Value, Ledger
                 .current_task
                 .as_ref()
                 .map(|task| task.id.as_str())
-                == Some(task_b_id.as_str());
+                == Some(task_a_id.as_str());
 
         let after_undo_facts = service.weekly_facts(0, i64::MAX)?;
         let undone_excluded = after_undo_facts.effective_completions.is_empty();

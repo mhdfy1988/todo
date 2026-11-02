@@ -744,10 +744,25 @@ fn replay_queue_history(connection: &Connection) -> Result<QueueReplay, LedgerEr
                     ));
                 }
             }
-            TaskEventType::CompletionUndone
-            | TaskEventType::DueRecovered
-            | TaskEventType::Recovered
-            | TaskEventType::Reopened => {
+            TaskEventType::CompletionUndone => {
+                if is_subtask {
+                    failures.push(format!(
+                        "子代办事件 {} 错误使用了顶层事件类型 {}",
+                        event.id,
+                        event.event_type.as_storage()
+                    ));
+                } else if queue.iter().any(|task_id| task_id == &event.task_id) {
+                    failures.push(format!(
+                        "任务事件 {}（{}）尝试重复入队任务 {}",
+                        event.id,
+                        event.event_type.as_storage(),
+                        event.task_id
+                    ));
+                } else {
+                    queue.insert(0, event.task_id.clone());
+                }
+            }
+            TaskEventType::DueRecovered | TaskEventType::Recovered | TaskEventType::Reopened => {
                 if is_subtask {
                     failures.push(format!(
                         "子代办事件 {} 错误使用了顶层事件类型 {}",

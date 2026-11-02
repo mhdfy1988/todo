@@ -752,7 +752,7 @@ fn materialize_queue_position(
     }
     match placement {
         TaskPlacement::Preserve => unreachable!(),
-        TaskPlacement::QueueHead | TaskPlacement::QueueTail => {
+        TaskPlacement::QueueHead => {
             if task.parent_task_id.is_some()
                 || task.sibling_position.is_some()
                 || task.queue_position.is_some()
@@ -760,9 +760,6 @@ fn materialize_queue_position(
                 return Err(LedgerError::integrity("顶层待办的位置形态无效"));
             }
             if placement == TaskPlacement::QueueHead {
-                if !is_insert {
-                    return Err(LedgerError::integrity("只有新建顶层待办才能放到队首"));
-                }
                 shift_queue_for_head_insert(transaction)?;
                 task.queue_position = Some(1);
             } else {

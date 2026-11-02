@@ -281,6 +281,56 @@ fn ledger_smoke_replay_and_undo_are_append_only() {
 }
 
 #[test]
+fn ledger_smoke_undo_completion_returns_root_to_queue_head() {
+    let store = SqliteLedgerStore::open_in_memory().expect("应建立撤销置顶测试账本");
+    let mut service = TaskService::new(store, SystemClock, UuidIdGenerator);
+    let task_a = service
+        .capture_task("capture-undo-head-a", "任务 A")
+        .expect("应创建 A");
+    let task_b = service
+        .capture_task("capture-undo-head-b", "任务 B")
+        .expect("应创建 B");
+
+    let completed = service
+        .complete_task("complete-undo-head-b", &task_b.task_id)
+        .expect("应完成 B");
+    assert_eq!(
+        service
+            .snapshot()
+            .expect("应读取完成后快照")
+            .queue
+            .iter()
+            .map(|task| task.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![task_a.task_id.as_str()]
+    );
+
+    service
+        .undo_completion("undo-undo-head-b", &completed.event_id)
+        .expect("撤销 B 应成功");
+    let after_undo = service.snapshot().expect("应读取撤销后快照");
+    assert_eq!(
+        after_undo
+            .queue
+            .iter()
+            .map(|task| task.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![task_b.task_id.as_str(), task_a.task_id.as_str()]
+    );
+    assert_eq!(
+        after_undo
+            .current_task
+            .as_ref()
+            .map(|task| task.id.as_str()),
+        Some(task_b.task_id.as_str())
+    );
+    assert!(service
+        .verify_integrity()
+        .expect("撤销置顶账本应完成校验")
+        .is_ok());
+}
+
+#[test]
 fn ledger_smoke_soft_delete_is_idempotent_and_preserves_queue_history() {
     let store = SqliteLedgerStore::open_in_memory().expect("应建立软删除测试账本");
     let mut service = TaskService::new(store, SystemClock, UuidIdGenerator);
@@ -1406,9 +1456,9 @@ fn ledger_smoke_backs_up_and_migrates_a_populated_v1_ledger_to_v5() {
         service
             .reorder_tasks(
                 "v2-reorder-b-a",
-                &task_b_id,
-                &[task_a_id.clone(), task_b_id.clone()],
+                &task_a_id,
                 &[task_b_id.clone(), task_a_id.clone()],
+                &[task_a_id.clone(), task_b_id.clone()],
             )
             .expect("升级后应能写入新重排事件");
         assert!(service
@@ -2538,7 +2588,7 @@ fn ledger_smoke_keeps_projection_consistent_when_reorder_races_child_delete() {
 }
 
 #[test]
-fn ledger_smoke_serializes_balance_and_tail_for_different_tasks() {
+fn ledger_smoke_serializes_balance_and_undo_head_for_different_tasks() {
     let path = temporary_database_path("cross-task-concurrent");
     let (task_a_id, task_b_id, task_c_id, completion_a_id) = {
         let store = SqliteLedgerStore::open(&path).expect("应建立跨任务并发账本");
@@ -2641,11 +2691,11 @@ fn ledger_smoke_serializes_balance_and_tail_for_different_tasks() {
         assert_eq!(snapshot.events.len(), 6);
         assert_eq!(
             snapshot.current_task.as_ref().map(|task| task.id.as_str()),
-            Some(task_c_id.as_str())
+            Some(task_a_id.as_str())
         );
         assert_eq!(
             snapshot.queue.last().map(|task| task.id.as_str()),
-            Some(task_a_id.as_str())
+            Some(task_c_id.as_str())
         );
         assert!(service.verify_integrity().expect("应校验并发账本").is_ok());
     }

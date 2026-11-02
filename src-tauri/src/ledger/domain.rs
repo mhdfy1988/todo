@@ -270,7 +270,6 @@ impl IntegrityReport {
 pub enum TaskPlacement {
     Preserve,
     QueueHead,
-    QueueTail,
     SiblingTail,
 }
 
@@ -1332,7 +1331,7 @@ pub fn undo_completion_transition(
             placement: if is_subtask {
                 TaskPlacement::Preserve
             } else {
-                TaskPlacement::QueueTail
+                TaskPlacement::QueueHead
             },
         },
         event,
@@ -1574,6 +1573,13 @@ mod tests {
         )
         .expect("撤销转换应成功");
         assert_eq!(undo.reward.expect("应有扣回交易").amount, -1);
+        assert!(matches!(
+            &undo.task_write,
+            TaskWrite::Update {
+                placement: TaskPlacement::QueueHead,
+                ..
+            }
+        ));
         assert_eq!(
             undo.event.reverses_event_id.as_deref(),
             Some("event-complete")

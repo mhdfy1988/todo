@@ -207,7 +207,7 @@ pub(crate) fn run(app: AppHandle) {
                 && undo_event_recorded
                 && undo_reward_recorded
                 && ledger_after_undo.current_task.as_ref().map(|task| &task.id)
-                    == Some(&captured_b.task_id)
+                    == Some(&captured_a.task_id)
                 && deleted_a.task_id == captured_a.task_id
                 && ledger_after_delete
                     .queue

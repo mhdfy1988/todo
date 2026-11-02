@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-02
+
+### Fixed
+
+- 撤销顶层待办的完成记录后，任务重新回到待办列表最上方；子待办仍保留原同级位置。
+
 ## [0.1.6] - 2026-08-26
 
 ### Changed
@@ -92,7 +98,8 @@
 - 支持完成记录与撤销、当前页面搜索、桌面胶囊、系统托盘和应用内更新。
 - 使用本地 SQLite 事件账本保存任务、完成历史、奖励和幂等命令回执。
 
-[Unreleased]: https://github.com/mhdfy1988/todo/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/mhdfy1988/todo/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/mhdfy1988/todo/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/mhdfy1988/todo/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/mhdfy1988/todo/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/mhdfy1988/todo/compare/v0.1.3...v0.1.4
