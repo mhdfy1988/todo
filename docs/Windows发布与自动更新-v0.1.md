@@ -1,8 +1,8 @@
 # 待办：Windows 发布与自动更新 v0.1
 
-> 状态：`v0.1.7` 已正式发布；`v0.1.8` 已完成本机验证，正在准备发布
+> 状态：`v0.1.8` 已正式发布并完成线上验证
 > 更新时间：2026-11-02
-> 适用版本：`0.1.7 → 0.1.8`
+> 适用版本：`0.1.8`
 
 ## 1. 当前结论
 
@@ -25,8 +25,8 @@
 | `0.1.6` 功能候选 | 已通过本机试用 | 阻止 normal 重复打开并唤回现有窗口；新建父待办置顶、子待办继续向下追加，旧事件顺序保持兼容；schema、identifier、更新端点和签名公钥均不变 |
 | `v0.1.6` 正式版 | 已发布并完成线上验证 | 发布工作流完成版本、测试、格式、静态检查、草稿资产、更新签名、元数据、正文与公开状态闭环验证；公开 Release 包含 `latest.json`、安装器与 `.sig` |
 | `v0.1.7` 正式版 | 已发布并完成线上验证 | 撤销顶层完成后回到待办队首，子待办保留原同级位置；Actions #41415190457 已完成测试、格式、Clippy、安装器构建、更新签名、元数据、正文与公开状态闭环验证；公开 Release 包含 `latest.json`、安装器与 `.sig` |
-| `0.1.8` 功能候选 | 已通过本机验证 | 兼容旧账本没有队列位置元数据的撤销完成事件；新事件继续把顶层待办放回队首；完整 Rust/前端测试和现有正式账本启动验证已通过，等待正式 Release |
-| 标准更新日志 | 已接入发布门禁 | 根目录 `CHANGELOG.md` 遵循 Keep a Changelog；`0.1.7` 已收口到带实际日期的正式版本段，Release 正文和 `latest.json` notes 已从该版本段生成 |
+| `v0.1.8` 正式版 | 已发布并完成线上验证 | 发布工作流 #41427567265 完成测试、格式、静态检查、安装器构建、更新签名、元数据、正文与公开状态闭环验证；公开 Release 包含 `latest.json`、安装器与 `.sig` |
+| 标准更新日志 | 已接入发布门禁 | 根目录 `CHANGELOG.md` 遵循 Keep a Changelog；`0.1.8` 已收口到带实际日期的正式版本段，Release 正文和 `latest.json` notes 已从该版本段生成 |
 | schema v5 降级 | 不支持 | 正式 `0.1.2` 迁移后的 normal 数据不能交给 `0.1.1` 的 v4 客户端读取；安装回退不等于数据回退 |
 | `0.1.4 → 0.1.5` 应用内升级 | 待执行 | `v0.1.4` 旧目标未在 Latest 切换前形成可确认闭环；从当前已安装的 `0.1.4` 验证发现、安装重启与数据保留 |
 | Windows Authenticode | 暂未配置 | 安装器可能触发 Microsoft Defender SmartScreen 提示 |
@@ -135,6 +135,8 @@ UpdateController
 `v0.1.4` 已通过 [Actions #30064634767](https://github.com/mhdfy1988/todo/actions/runs/30064634767) 完成正式发布，Release、轻量标签和发布工作流均指向提交 `d9755121ad3ab7b0952ed9940361abe4a248b443`。公开资产共 3 项；安装器大小为 `3,200,349` 字节，SHA-256 为 `D9B4550F2DF67C0045C2454D599E0A04ACA5D364452D0134B1D8203C2DCA9CC4`。工作流内验签、`latest.json` 下载哈希、草稿正文和最终发布状态均通过；发布后又以匿名地址下载 `latest.json`、安装器与 `.sig`，并使用客户端内嵌公钥独立验签成功。
 
 `v0.1.5` 已通过 [Actions #30211980913](https://github.com/mhdfy1988/todo/actions/runs/30211980913) 完成正式发布，[Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.5)、轻量标签和发布工作流均指向提交 `533e3450e03455871202f31a70b4b74fc9bf1acb`，并已成为公开 Latest。公开资产共 3 项：`latest.json` 为 `1,853` 字节、SHA-256 为 `DD70AF84AFDC212E81157D4BA5D7262ADF086DD581C0E459EF065B4B4F6A1271`；`_0.1.5_x64-setup.exe` 为 `3,199,710` 字节、SHA-256 为 `FF6632FD35A65F383DCB9E02E5FB24F608644100A236C844975C493D79991574`；对应 `.sig` 为 `416` 字节、SHA-256 为 `8C0A508F3BBB93215D50649DBEB5E9E0330EA02492768C5640EC58D3BA54829E`。发布后再次从公开地址匿名下载全部资产，并按 `latest.json` 中的 GitHub 资产 API 地址、使用 updater 同样的 `Accept: application/octet-stream` 头且不携带授权信息重新下载安装器；两种 Windows 平台映射、签名字段、公开资产摘要、客户端内嵌公钥验签、Release 正文和 CHANGELOG notes 均一致。
+
+`v0.1.8` 已通过 [Actions #41427567265](https://github.com/mhdfy1988/todo/actions/runs/41427567265) 完成正式发布，[Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.8) 已公开。公开资产共 3 项：`latest.json`、`_0.1.8_x64-setup.exe` 和对应 `.sig`；工作流已完成版本、CHANGELOG、测试、格式、Clippy、安装器构建、签名、元数据与公开状态校验。
 
 ## 7. 发布密钥
 
