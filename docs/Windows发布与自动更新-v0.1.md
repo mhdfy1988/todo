@@ -1,7 +1,7 @@
 # 待办：Windows 发布与自动更新 v0.1
 
 > 状态：`v0.1.8` 已正式发布并完成线上验证
-> 更新时间：2026-11-02
+> 更新时间：2026-11-21
 > 适用版本：`0.1.8`
 
 ## 1. 当前结论
@@ -15,7 +15,8 @@
 | GitHub Actions 发布 | 已实现并完成线上验证 | 支持手动触发和 `v*` 标签触发；[Actions #41427567265](https://github.com/mhdfy1988/todo/actions/runs/41427567265) 已成功发布 `v0.1.8` |
 | 当前 GitHub Release | 已完成 | [v0.1.8](https://github.com/mhdfy1988/todo/releases/tag/v0.1.8) 已发布为 Latest，包含安装器、`.sig` 与 `latest.json` |
 | `latest.json` 线上读取 | 已验证 | 已从公开 Latest 地址匿名读取，并按其中地址下载、验签安装器及核对资产摘要 |
-| 当前用户安装基线 | 待重新确认 | 2026-07-27 重新读取 Windows 卸载注册信息：“待办”版本为 `0.1.4`，安装位置为 `D:\待办`；这是当时的记录，不代表当前版本，也不证明此前安装方式 |
+| Windows 实机使用（`v0.1.8`） | 已通过 | 维护者于 2026-11-21 确认正在实机使用正式版；此记录不用于判定升级前版本或安装方式 |
+| 历史安装记录 | 已记录 | 2026-07-27 重新读取 Windows 卸载注册信息：“待办”版本为 `0.1.4`，安装位置为 `D:\待办`；这是当时的记录，不代表当前版本，也不证明此前安装方式 |
 | `v0.1.2` 正式版 | 已发布 | 新增一级子代办与 schema v5；应用标识、更新端点与签名公钥保持不变，数据库会从 schema v4 受检迁移到 v5 |
 | `v0.1.3` 正式版 | 已发布 | 精简子代办新增与折叠交互；应用标识、更新端点、签名公钥和 schema v5 均保持不变 |
 | `0.1.4` 功能候选 | 已通过本机试装 | 使用“待办测试版”隔离身份验证本版全部功能；试装包元数据仍为 `0.1.3`，确认发布后五处版本事实才统一提升到 `0.1.4`，正式资产由 Actions 重新构建 |
@@ -28,7 +29,7 @@
 | `v0.1.8` 正式版 | 已发布并完成线上验证 | 发布工作流 #41427567265 完成测试、格式、静态检查、安装器构建、更新签名、元数据、正文与公开状态闭环验证；公开 Release 包含 `latest.json`、安装器与 `.sig` |
 | 标准更新日志 | 已接入发布门禁 | 根目录 `CHANGELOG.md` 遵循 Keep a Changelog；`0.1.8` 已收口到带实际日期的正式版本段，Release 正文和 `latest.json` notes 已从该版本段生成 |
 | schema v5 降级 | 不支持 | 正式 `0.1.2` 迁移后的 normal 数据不能交给 `0.1.1` 的 v4 客户端读取；安装回退不等于数据回退 |
-| 应用内升级至 Latest | 待执行 | 历史上的 `v0.1.4 → v0.1.5` 未在 Latest 切换前形成可确认闭环；先确认实机已安装版本。若低于 [GitHub Latest](https://github.com/mhdfy1988/todo/releases/latest)，验证应用内发现、安装重启与数据保留 |
+| 应用内升级至 Latest | 待执行 | 历史上的 `v0.1.4 → v0.1.5` 未在 Latest 切换前形成可确认闭环；用已确认版本的旧版测试环境升级至 [GitHub Latest](https://github.com/mhdfy1988/todo/releases/latest)，验证应用内发现、安装重启与数据保留 |
 | Windows Authenticode | 暂未配置 | 安装器可能触发 Microsoft Defender SmartScreen 提示 |
 
 ## 2. 目标与边界
@@ -182,8 +183,9 @@ GitHub Actions 只约定以下 Secrets 名称：
 - [x] 正式发布 `v0.1.7`，核对工作流运行提交、安装器、`.sig`、`latest.json`、Release 正文和公开 Latest。
 - [x] `0.1.8` 功能候选完成本机验证，旧账本可正常启动。
 - [x] 正式发布 `v0.1.8`，核对工作流运行提交、安装器、`.sig`、`latest.json`、Release 正文和公开 Latest（[Actions #41427567265](https://github.com/mhdfy1988/todo/actions/runs/41427567265)）。
-- [ ] 先确认 Windows 实机已安装版本及 [GitHub Latest](https://github.com/mhdfy1988/todo/releases/latest)。若已安装版本较旧，验证“应用内发现更新 → 用户点击安装 → 下载校验 → 安装重启”。
+- [x] `v0.1.8` 正式版 Windows 实机使用验证通过（维护者于 2026-11-21 确认）。
+- [ ] 在已确认版本的旧版 Windows 测试环境中，升级至 [GitHub Latest](https://github.com/mhdfy1988/todo/releases/latest)，验证“应用内发现更新 → 用户点击安装 → 下载校验 → 安装重启”。
 - [ ] 升级后核对 Windows 安装版本、“待办”名称、悬浮任务牌图标、已完成入口、原有父子数据与完成历史、托盘单实例和再次检查更新结果。
 - [ ] 记录 SmartScreen 实际表现；若进入公开分发，再单独评估 Authenticode 证书。
 
-[v0.1.8](https://github.com/mhdfy1988/todo/releases/tag/v0.1.8) 已通过 [Actions #41427567265](https://github.com/mhdfy1988/todo/actions/runs/41427567265) 发布并完成线上验证。旧账本在 `0.1.8` 候选版中已验证能正常启动；应用内更新、安装重启与数据保留仍需从确认过的实机安装基线验证。
+[v0.1.8](https://github.com/mhdfy1988/todo/releases/tag/v0.1.8) 已通过 [Actions #41427567265](https://github.com/mhdfy1988/todo/actions/runs/41427567265) 发布并完成线上验证。旧账本在 `0.1.8` 候选版中已验证能正常启动；维护者于 2026-11-21 确认正式版实机使用验证通过。应用内更新、安装重启与数据保留仍需单独验证。
