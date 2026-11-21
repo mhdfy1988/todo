@@ -127,7 +127,7 @@ npx.cmd tauri build --bundles nsis --ci --no-sign --config src-tauri\tauri.candi
 
 ## 安装、发布与更新
 
-- 首次安装：用户从 [`v0.1.7` GitHub Release](https://github.com/mhdfy1988/todo/releases/tag/v0.1.7) 手动下载 Windows x64 `setup.exe` 并安装；安装范围为当前用户。
+- 首次安装：用户从 [GitHub 最新正式版](https://github.com/mhdfy1988/todo/releases/latest) 手动下载 Windows x64 `setup.exe` 并安装；安装范围为当前用户。
 - 后续更新：正常模式启动后立即静默检查一次，此后每 24 小时检查；更多菜单提供“检查更新”。发现新版本后，用户点击“安装更新”才会下载、安装并重启应用。
 - 冒烟隔离：smoke 前端不会启动更新控制器，Rust 更新服务也会在访问网络前拒绝请求，避免测试触碰正式更新源。
 - 自动发布：`.github/workflows/release.yml` 支持从 `main` 手动触发和 `v*` 标签触发；已公开的版本禁止覆盖，新版本必须先同步提升 npm、Tauri、Cargo 三份清单及对应锁文件的版本事实，并把 [`CHANGELOG.md`](./CHANGELOG.md) 的 `Unreleased` 内容收口到带实际日期的当前版本段。GitHub Release 正文只读取该标准版本段，不混入自动提交列表；`tauri-apps/tauri-action@v1` 先生成草稿 Release、安装器、更新签名和 `latest.json`，工作流回读核对正文、用客户端公钥验签并核对元数据后才自动发布。
